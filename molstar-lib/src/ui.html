@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+        <title>FSAPT Visualization with Mol*</title>
+    </head>
+    <link rel="stylesheet" type="text/css" href="css/style.css" />
+    <style>
+        #app {
+            position: absolute;
+            inset: 0;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+    <script type="text/javascript" src="./js/ui.js"></script>
+    <body>
+        <div id="app"></div>
+        
+        <script type="text/javascript">
+            // Initialize the React app
+            window.addEventListener('load', function() {
+                molstarLib.initFsaptApp('app');
+            });
+        </script>
+    </body>
+</html>
+                    spec: {
+                        layout: {
+                            initial: {
+                                isExpanded: true,
+                                showControls: true,
+                            },
+                        },
+                    }
+                });
+                await molstarLib.loadStructure(plugin, "https://models.rcsb.org/4hhb.bcif", { isBinary: true });
+            }
+            init();
+        </script>
+    </body>
+</html>
