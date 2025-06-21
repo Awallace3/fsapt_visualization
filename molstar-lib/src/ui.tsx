@@ -1,16 +1,29 @@
-import React from 'react';
-import React, { useState, useEffect, useRef } from 'react';
-import { createRoot } from 'react-dom/client';
+import React from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
 
-import { DefaultPluginUISpec, PluginUISpec } from 'molstar/lib/mol-plugin-ui/spec';
-import { PluginUIContext } from 'molstar/lib/mol-plugin-ui/context';
-import { Plugin } from 'molstar/lib/mol-plugin-ui/plugin';
-import { Color } from 'molstar/lib/mol-util/color';
-import { StructureElement } from 'molstar/lib/mol-model/structure';
-import { Script } from 'molstar/lib/mol-script/script';
-import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
-import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
-import { PluginStateObject } from 'molstar/lib/mol-plugin-state/objects';
+import {
+  DefaultPluginUISpec,
+  PluginUISpec,
+} from "molstar/lib/mol-plugin-ui/spec";
+import { PluginUIContext } from "molstar/lib/mol-plugin-ui/context";
+import { Plugin } from "molstar/lib/mol-plugin-ui/plugin";
+import { Color } from "molstar/lib/mol-util/color";
+import { StructureElement } from "molstar/lib/mol-model/structure";
+import { Script } from "molstar/lib/mol-script/script";
+import { MolScriptBuilder as MS } from "molstar/lib/mol-script/language/builder";
+import { StateTransforms } from "molstar/lib/mol-plugin-state/transforms";
+import { PluginStateObject } from "molstar/lib/mol-plugin-state/objects";
+import { StructureSelection } from "molstar/lib/mol-model/structure";
+import { Bundle } from "molstar/lib/mol-model/structure/structure/element/bundle";
+import { ParamDefinition as PD } from "molstar/lib/mol-util/param-definition";
+import { StructureSelectionQueries } from "molstar/lib/mol-plugin-state/helpers/structure-selection-query";
+import { ColorNames } from "molstar/lib/mol-util/color/names";
+import { ColorTheme } from "molstar/lib/mol-theme/color";
+import { ThemeDataContext } from "molstar/lib/mol-theme/theme";
+import { Location } from "molstar/lib/mol-model/location";
+import { StructureSelection } from "molstar/lib/mol-model/structure";
+import { Bundle } from "molstar/lib/mol-model/structure/structure/element/bundle";
 interface FsaptData {
     atom_indices: number[];
     energy_contributions: number[];
@@ -70,53 +83,159 @@ export async function fetchFsaptData(ligandId: string, proteinId: string, apiUrl
     }
 }
 
-export async function applyFsaptColoring(plugin: PluginUIContext, fsaptData: FsaptData) {
-    try {
-        // Get the structure
-        const structures = plugin.managers.structure.hierarchy.current.structures;
-        if (structures.length === 0) {
-            throw new Error('No structure loaded');
-        }
-        
-        const structure = structures[0];
-        
-        // For now, just log the data and show a simple visual change
-        console.log('FSAPT Data received:', fsaptData);
-        console.log('Atom indices:', fsaptData.atom_indices);
-        console.log('Energy contributions:', fsaptData.energy_contributions);
-        
-        // Calculate some basic statistics
-        const totalEnergy = fsaptData.energy_contributions.reduce((sum, energy) => sum + energy, 0);
-        const attractiveCount = fsaptData.energy_contributions.filter(e => e < 0).length;
-        const repulsiveCount = fsaptData.energy_contributions.filter(e => e > 0).length;
-        
-        console.log(`Total energy: ${totalEnergy.toFixed(2)} kcal/mol`);
-        console.log(`Attractive interactions: ${attractiveCount}`);
-        console.log(`Repulsive interactions: ${repulsiveCount}`);
-        
-        // Simple approach: Just change the overall structure color to indicate FSAPT is active
-        const update = plugin.build();
-        
-        // Add a new component with different coloring to show FSAPT is working
-        update.to(structure)
-            .apply(StateTransforms.Model.StructureComponent, {
-                type: { name: 'static', params: MS.struct.generator.all() },
-                label: `FSAPT Active (${fsaptData.atom_indices.length} interactions)`
-            })
-            .apply(StateTransforms.Representation.StructureRepresentation3D, {
-                type: { name: 'cartoon', params: {} },
-                colorTheme: { name: 'chain-id', params: {} }
-            });
-        
-        await update.commit();
-        
-        console.log(`FSAPT visualization applied - processed ${fsaptData.atom_indices.length} interactions`);
-        
-    } catch (error) {
-        console.error('Error applying fsapt coloring:', error);
-        throw error;
+function createFsaptColorTheme(fsaptData: FsaptData): ColorTheme.Provider<any, any> {
+  const energyMap = new Map<number, number>();
+  const { atom_indices, energy_contributions } = fsaptData;
+  
+  // Create mapping from atom indices to energy values
+  for (let i = 0; i < atom_indices.length; i++) {
+    energyMap.set(atom_indices[i], energy_contributions[i]);
+  }
+
+  // Calculate energy range for color scaling
+  const minEnergy = Math.min(...energy_contributions);
+  const maxEnergy = Math.max(...energy_contributions);
+  const energyRange = Math.max(Math.abs(minEnergy), Math.abs(maxEnergy));
+
+  function getEnergyColor(energy: number): Color {
+    if (Math.abs(energy) < 0.05) {
+      // Neutral/weak interactions - light gray
+      return ColorNames.lightgray;
     }
+    
+    if (energy < 0) {
+      // Attractive interactions - blue gradient
+      const intensity = Math.min(Math.abs(energy) / energyRange, 1.0);
+      if (intensity < 0.3) return Color.fromRgb(173, 216, 230); // Light blue
+      if (intensity < 0.6) return Color.fromRgb(100, 149, 237); // Cornflower blue
+      return Color.fromRgb(0, 0, 255); // Pure blue for strong attractive
+    } else {
+      // Repulsive interactions - red gradient
+      const intensity = Math.min(energy / energyRange, 1.0);
+      if (intensity < 0.3) return Color.fromRgb(255, 182, 193); // Light pink
+      if (intensity < 0.6) return Color.fromRgb(255, 99, 71); // Tomato
+      return Color.fromRgb(255, 0, 0); // Pure red for strong repulsive
+    }
+  }
+
+  // const FsaptColorTheme = ColorTheme.factory({
+  //   name: 'fsapt-interaction',
+  //   label: 'FSAPT Interaction',
+  //   category: ColorTheme.Category.Atom,
+  //   factory: (ctx: ThemeDataContext, props: any) => {
+  //     return {
+  //       factory: FsaptColorTheme,
+  //       granularity: 'group',
+  //       color: (location: Location): Color => {
+  //         if (StructureElement.Location.is(location)) {
+  //           const atomIndex = StructureElement.Location.atomIndex(location);
+  //           if (energyMap.has(atomIndex)) {
+  //             const energy = energyMap.get(atomIndex)!;
+  //             return getEnergyColor(energy);
+  //           }
+  //         }
+  //         // Default color for atoms without FSAPT data
+  //         return Color.fromRgb(128, 128, 128); // Gray
+  //       },
+  //       props: props,
+  //       description: 'Colors atoms based on FSAPT interaction energies'
+  //     };
+  //   },
+  //   getParams: () => ({}),
+  //   defaultValues: {},
+  //   isApplicable: () => true
+  // });
+  // return FsaptColorTheme;
+  return {};
 }
+
+// Simplified approach: Apply coloring by creating selections and colored representations
+export async function applyFsaptColoring(
+  plugin: PluginUIContext,
+  fsaptData: FsaptData,
+) {
+  // try {
+    // Get the structure
+    const structures = plugin.managers.structure.hierarchy.current.structures;
+    if (structures.length === 0) {
+      throw new Error("No structure loaded");
+    }
+
+    console.log("FSAPT Data received:", fsaptData);
+    console.log("Atom indices:", fsaptData.atom_indices);
+    console.log("Energy contributions:", fsaptData.energy_contributions);
+
+    // Calculate some basic statistics
+    const totalEnergy = fsaptData.energy_contributions.reduce(
+      (sum, energy) => sum + energy,
+      0,
+    );
+    const attractiveCount = fsaptData.energy_contributions.filter(
+      (e) => e < 0,
+    ).length;
+    const repulsiveCount = fsaptData.energy_contributions.filter(
+      (e) => e > 0,
+    ).length;
+
+    console.log(`Total energy: ${totalEnergy.toFixed(2)} kcal/mol`);
+    console.log(`Attractive interactions: ${attractiveCount}`);
+    console.log(`Repulsive interactions: ${repulsiveCount}`);
+
+    // Create and register the custom color theme
+    const fsaptTheme = createFsaptColorTheme(fsaptData);
+    plugin.representation.structure.themes.colorThemeRegistry.add(fsaptTheme);
+
+    // Apply the custom color theme to all structure representations
+    const update = plugin.state.data.build();
+    
+    for (const structure of structures) {
+      const representations = plugin.managers.structure.hierarchy.current.structures.find(s => s.cell.obj === structure.cell.obj)?.representations || [];
+      
+      for (const repr of representations) {
+        if (repr.cell.obj && repr.cell.params && repr.cell.params.type && repr.cell.params.type.name === 'ball-and-stick') {
+          update.to(repr.cell).update(StateTransforms.Representation.StructureRepresentation3D, old => ({
+            ...old,
+            colorTheme: { name: 'fsapt-interaction', params: {} }
+          }));
+        }
+      }
+    }
+
+    await update.commit();
+
+    console.log(
+      `FSAPT visualization applied - processed ${fsaptData.atom_indices.length} interactions`,
+    );
+
+    if (!ligandId || !proteinId) {
+      showStatus("❌ Please enter both Ligand ID and Protein ID", "error");
+      return;
+    }
+
+    setIsLoading(true);
+    showStatus("🔄 Fetching FSAPT data and applying visualization...", "info");
+
+    try {
+      const fsaptData = await visualizeFsaptInteractions(
+        plugin,
+        ligandId,
+        proteinId,
+        apiUrl,
+      );
+      const summary = `✅ FSAPT visualization applied! Found ${fsaptData.atom_indices.length} significant interactions`;
+      showStatus(summary, "success");
+    } catch (error) {
+      showStatus(
+        `❌ FSAPT visualization failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+        "error",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  // };
+};
 
 interface ControlPanelProps {
     plugin: PluginUIContext | null;
