@@ -28,6 +28,7 @@ import { ColorTheme } from 'molstar/lib/mol-theme/color';
 import "molstar/lib/mol-util/polyfill";
 import { ObjectKeys } from "molstar/lib/mol-util/type-helpers";
 import { StructureFocusRepresentation } from 'molstar/lib/mol-plugin/behavior/dynamic/selection/structure-focus-representation';
+import {CustomPerAtomColorThemeProvider} from './fsaptColorTheme.tsx';
 // import ViewportComponent from "./viewport.tsx";
 
 interface FsaptData {
@@ -291,9 +292,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ plugin }) => {
     }
   };
   console.log("Loaded structure:", structRef.current);
-    if (plugin && structRef.current) {
-      logStructureData(plugin);
-  }
+  //   if (plugin && structRef.current) {
+  //     logStructureData(plugin);
+  // }
 
 
   const handleFsaptVisualization = async () => {
@@ -311,13 +312,14 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ plugin }) => {
     showStatus("🔄 Fetching FSAPT data and applying visualization...", "info");
 
     try {
-      const fsaptData = await visualizeFsaptInteractions(
-        plugin,
-        ligandId,
-        proteinId,
-        apiUrl,
-      );
-      const summary = `✅ FSAPT visualization applied! Found ${fsaptData.atom_indices.length} significant interactions`;
+      // const fsaptData = await visualizeFsaptInteractions(
+      //   plugin,
+      //   ligandId,
+      //   proteinId,
+      //   apiUrl,
+      // );
+      plugin.representation.structure.themes.colorThemeRegistry.add(CustomPerAtomColorThemeProvider);
+      const summary = `✅ FSAPT visualization applied!`;
       showStatus(summary, "success");
     } catch (error) {
       showStatus(

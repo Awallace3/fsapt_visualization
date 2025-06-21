@@ -1,7 +1,8 @@
 import { type ThemeDataContext } from 'molstar/lib/mol-theme/theme';
 import { ParamDefinition as PD } from 'molstar/lib/mol-util/param-definition';
-import { ColorTheme, Color } from 'molstar/lib/mol-theme/color';
+import { ColorTheme } from 'molstar/lib/mol-theme/color';
 import { ColorNames  } from 'molstar/lib/mol-util/color/names';
+import { Color  } from 'molstar/lib/mol-util/color';
 import {StructureElement} from 'molstar/lib/mol-model/structure';
 
 export const CustomAtomColorThemeParams = {
@@ -30,7 +31,8 @@ export function CustomPerAtomColorTheme(ctx: ThemeDataContext, props: PD.Values<
     return {
         factory: CustomPerAtomColorTheme,
         granularity: 'instance',
-        color: color,
+        // color: color,
+        color,
         props: props,
         description: 'Per atom color color theme',
     };
