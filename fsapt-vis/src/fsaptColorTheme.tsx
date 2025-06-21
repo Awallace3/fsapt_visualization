@@ -1,0 +1,48 @@
+import { type ThemeDataContext } from 'molstar/lib/mol-theme/theme';
+import { ParamDefinition as PD } from 'molstar/lib/mol-util/param-definition';
+import { ColorTheme, Color } from 'molstar/lib/mol-theme/color';
+import { ColorNames  } from 'molstar/lib/mol-util/color/names';
+import {StructureElement} from 'molstar/lib/mol-model/structure';
+
+export const CustomAtomColorThemeParams = {
+    indices: PD.Value<number[]>([]),
+    colors: PD.Value<Color[]>([])
+};
+export type CustomAtomColorThemeParams = typeof CustomAtomColorThemeParams
+export function getPerAtomColorThemeParams(ctx: ThemeDataContext) {
+    return CustomAtomColorThemeParams;
+}
+
+export function CustomPerAtomColorTheme(ctx: ThemeDataContext, props: PD.Values<CustomAtomColorThemeParams>): ColorTheme<CustomAtomColorThemeParams> {
+    const color = (location: Location): Color => {
+        const colorMap = new Map<number, Color>();
+        for (let i = 0; i < props.colors.length; i++) {
+            colorMap.set(props.indices[i], props.colors[i]);
+        }
+
+        if (StructureElement.Location.is(location)) {
+            const idx = location.element as number;
+            return colorMap.get(idx) ?? ColorNames.gray;
+        }
+        return ColorNames.blue;
+    };
+
+    return {
+        factory: CustomPerAtomColorTheme,
+        granularity: 'instance',
+        color: color,
+        props: props,
+        description: 'Per atom color color theme',
+    };
+}
+
+export const CustomPerAtomColorThemeProvider: ColorTheme.Provider<CustomAtomColorThemeParams, 'custom-per-atom-color'> = {
+    name: 'custom-per-atom-color',
+    label: 'Custom per-atom colors',
+    category: ColorTheme.Category.Atom,
+    factory: CustomPerAtomColorTheme,
+    defaultValues: PD.getDefaultValues(CustomAtomColorThemeParams),
+    getParams: getPerAtomColorThemeParams,
+    isApplicable: (ctx: ThemeDataContext) => !!ctx.structure,
+};
+
