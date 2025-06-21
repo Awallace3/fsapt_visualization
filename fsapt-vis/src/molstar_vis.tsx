@@ -29,6 +29,12 @@ import { ObjectKeys } from "molstar/lib/mol-util/type-helpers";
 import { StructureFocusRepresentation } from 'molstar/lib/mol-plugin/behavior/dynamic/selection/structure-focus-representation';
 // import ViewportComponent from "./viewport.tsx";
 
+declare global {
+  interface Window {
+    molstar?: PluginUIContext;
+  }
+}
+
 interface FsaptData {
   atom_indices: number[];
   energy_contributions: number[];
@@ -115,16 +121,26 @@ const spec: PluginUISpec = {
     // },
   },
   config: [
-    [PluginConfig.Viewport.ShowExpand, o.viewportShowExpand],
-    [PluginConfig.Viewport.ShowControls, o.viewportShowControls],
-    [PluginConfig.Viewport.ShowSettings, o.viewportShowSettings],
-    [PluginConfig.Viewport.ShowSelectionMode, o.viewportShowSelectionMode],
-    [PluginConfig.Viewport.ShowAnimation, o.viewportShowAnimation],
-    [PluginConfig.State.DefaultServer, o.pluginStateServer],
-    [PluginConfig.State.CurrentServer, o.pluginStateServer],
-    [PluginConfig.VolumeStreaming.DefaultServer, o.volumeStreamingServer],
-    [PluginConfig.Download.DefaultPdbProvider, o.pdbProvider],
-    [PluginConfig.Download.DefaultEmdbProvider, o.emdbProvider],
+    // [PluginConfig.Viewport.ShowExpand, o.viewportShowExpand],
+    // [PluginConfig.Viewport.ShowControls, o.viewportShowControls],
+    // [PluginConfig.Viewport.ShowSettings, o.viewportShowSettings],
+    // [PluginConfig.Viewport.ShowSelectionMode, o.viewportShowSelectionMode],
+    // [PluginConfig.Viewport.ShowAnimation, o.viewportShowAnimation],
+    // [PluginConfig.State.DefaultServer, o.pluginStateServer],
+    // [PluginConfig.State.CurrentServer, o.pluginStateServer],
+    // [PluginConfig.VolumeStreaming.DefaultServer, o.volumeStreamingServer],
+    // [PluginConfig.Download.DefaultPdbProvider, o.pdbProvider],
+    // [PluginConfig.Download.DefaultEmdbProvider, o.emdbProvider],
+    [PluginConfig.Viewport.ShowExpand, true],
+    [PluginConfig.Viewport.ShowControls, true],
+    [PluginConfig.Viewport.ShowSettings, true],
+    [PluginConfig.Viewport.ShowSelectionMode, true],
+    [PluginConfig.Viewport.ShowAnimation, true],
+    [PluginConfig.State.DefaultServer, true],
+    [PluginConfig.State.CurrentServer, true],
+    [PluginConfig.VolumeStreaming.DefaultServer, true],
+    [PluginConfig.Download.DefaultPdbProvider, true],
+    [PluginConfig.Download.DefaultEmdbProvider, true],
   ],
 };
 console.log("Plugin spec:", spec);
@@ -142,10 +158,12 @@ export async function loadStructure(
     data,
     options?.format ?? ("mmcif" as any),
   );
+  console.log(trajectory);
   const structure = await plugin.builders.structure.hierarchy.applyPreset(
     trajectory,
     "default",
   );
+  console.log(structure);
   return structure;
 }
 export async function applyFsaptColoring(
@@ -589,7 +607,6 @@ const FsaptVisualizationApp: React.FC = () => {
   useEffect(() => {
     const initPlugin = async () => {
       try {
-        // const spec = { ...DefaultPluginUISpec() };
         const newPlugin = new PluginUIContext(spec);
         await newPlugin.init();
         setPlugin(newPlugin);
