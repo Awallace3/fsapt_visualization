@@ -201,8 +201,8 @@ export declare const IllustrativePreset: StructureRepresentationPresetProvider<
     };
   }
 >;
-export declare const ShowButtons:
-  import("molstar/lib/mol-plugin/config").PluginConfigItem<boolean>;
+// export declare const ShowButtons:
+//   import("molstar/lib/mol-plugin/config").PluginConfigItem<boolean>;
 export declare class ViewportComponent extends PluginUIComponent {
   _set(
     structures: readonly StructureRef[],
@@ -217,3 +217,4 @@ export declare class ViewportComponent extends PluginUIComponent {
   get showButtons(): boolean | undefined;
   render(): import("react/jsx-runtime").JSX.Element;
 }
+
