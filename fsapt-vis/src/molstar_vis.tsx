@@ -1,14 +1,10 @@
 import React, { useEffect, useState, useRef } from "react";
-import { createRoot } from "react-dom/client";
 import { Plugin } from "molstar/lib/mol-plugin-ui/plugin";
-import { StateTransforms } from "molstar/lib/mol-plugin-state/transforms";
 import { Structure } from "molstar/lib/mol-model/structure";
-import {
-  PluginStateObject as PSO,
-  PluginStateTransform,
-} from "molstar/lib/mol-plugin-state/objects";
-import { createPluginUI } from "molstar/lib/mol-plugin-ui";
-import { renderReact18 } from "molstar/lib/mol-plugin-ui/react18";
+// import {
+//   PluginStateObject as PSO,
+//   // PluginStateTransform,
+// } from "molstar/lib/mol-plugin-state/objects";
 import { type PluginLayoutControlsDisplay } from "molstar/lib/mol-plugin/layout";
 import { PluginUIContext } from "molstar/lib/mol-plugin-ui/context";
 import {
@@ -16,20 +12,13 @@ import {
   type PluginUISpec,
 } from "molstar/lib/mol-plugin-ui/spec";
 import { PluginBehaviors } from "molstar/lib/mol-plugin/behavior";
-import { PluginCommands } from "molstar/lib/mol-plugin/commands";
 import { PluginConfig } from "molstar/lib/mol-plugin/config";
 import { PluginSpec } from "molstar/lib/mol-plugin/spec";
-import { StateObject } from "molstar/lib/mol-state";
-import { Task } from "molstar/lib/mol-task";
-import { ColorNames } from "molstar/lib/mol-util/color/names";
-import { AtomIdColorTheme } from "molstar/lib/mol-theme/color/atom-id";
-import { ParamDefinition as PD } from "molstar/lib/mol-util/param-definition";
-import { ColorTheme } from 'molstar/lib/mol-theme/color';
 import "molstar/lib/mol-util/polyfill";
 import { ObjectKeys } from "molstar/lib/mol-util/type-helpers";
 import { StructureFocusRepresentation } from 'molstar/lib/mol-plugin/behavior/dynamic/selection/structure-focus-representation';
 import {CustomPerAtomColorThemeProvider} from './fsaptColorTheme.tsx';
-// import ViewportComponent from "./viewport.tsx";
+// import "molstar/lib/mol-plugin-ui/skin/light.scss";
 
 interface FsaptData {
   atom_indices: number[];
@@ -210,47 +199,47 @@ interface StatusMessage {
 }
 
 
-function logStructureData(
-  plugin: PluginUIContext,
-) {
-  console.log('logStructureData()');
-  const componentManager = plugin.managers.structure.component;
-  for (const structure of componentManager.currentStructures) {
-    if (!structure.properties) {
-        continue;
-    }
-    const cell = plugin.state.data.select(structure.properties.cell.transform.ref)[0];
-    if (!cell || !cell.obj) {
-      continue;
-    }
-    const structureData = (cell.obj as PSO.Molecule.Structure).data;
-    for (const component of structure.components) {
-      if (!component.cell.obj) {
-        continue;
-      }
-      // For each component in each structure, display the content of the selection
-      Structure.eachAtomicHierarchyElement(component.cell.obj.data, {
-        atom: location => console.log(location.element)
-      });
-      for (const rep of component.representations) {
-        // For each representation of the component, display its type
-        console.log(rep.cell?.transform?.params?.type?.name)
-
-        // Also display the color for each atom
-        const colorThemeName = rep.cell.transform.params?.colorTheme.name;
-        const colorThemeParams = rep.cell.transform.params?.colorTheme.params;
-        const theme = plugin.representation.structure.themes.colorThemeRegistry.create(
-          colorThemeName || '',
-          { structure: structureData },
-          colorThemeParams
-        ) as ColorTheme<typeof colorThemeParams>;
-        Structure.eachAtomicHierarchyElement(component.cell.obj.data, {
-          atom: loc => console.log(theme.color(loc, false))
-        });
-      }
-    }
-  }
-}
+// function logStructureData(
+//   plugin: PluginUIContext,
+// ) {
+//   console.log('logStructureData()');
+//   const componentManager = plugin.managers.structure.component;
+//   for (const structure of componentManager.currentStructures) {
+//     if (!structure.properties) {
+//         continue;
+//     }
+//     const cell = plugin.state.data.select(structure.properties.cell.transform.ref)[0];
+//     if (!cell || !cell.obj) {
+//       continue;
+//     }
+//     const structureData = (cell.obj as PSO.Molecule.Structure).data;
+//     for (const component of structure.components) {
+//       if (!component.cell.obj) {
+//         continue;
+//       }
+//       // For each component in each structure, display the content of the selection
+//       Structure.eachAtomicHierarchyElement(component.cell.obj.data, {
+//         atom: location => console.log(location.element)
+//       });
+//       for (const rep of component.representations) {
+//         // For each representation of the component, display its type
+//         console.log(rep.cell?.transform?.params?.type?.name)
+//
+//         // Also display the color for each atom
+//         const colorThemeName = rep.cell.transform.params?.colorTheme.name;
+//         const colorThemeParams = rep.cell.transform.params?.colorTheme.params;
+//         const theme = plugin.representation.structure.themes.colorThemeRegistry.create(
+//           colorThemeName || '',
+//           { structure: structureData },
+//           colorThemeParams
+//         ) as ColorTheme<typeof colorThemeParams>;
+//         Structure.eachAtomicHierarchyElement(component.cell.obj.data, {
+//           atom: loc => console.log(theme.color(loc, false))
+//         });
+//       }
+//     }
+//   }
+// }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({ plugin }) => {
   const [structureUrl, setStructureUrl] = useState(
@@ -762,13 +751,4 @@ const statusStyle: React.CSSProperties = {
   border: "1px solid",
 };
 
-// Export functions for external use
 export { FsaptVisualizationApp };
-
-// // Initialize the app
-// export async function initFsaptApp(element: string | HTMLDivElement) {
-//     const parent = typeof element === 'string' ? document.getElementById(element)! as HTMLDivElement : element;
-//     createRoot(parent).render(<FsaptVisualizationApp />);
-// }
-
-export default FsaptVisualizationApp;

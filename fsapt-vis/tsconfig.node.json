@@ -5,6 +5,7 @@
     "lib": ["ES2023", "dom"],
     "module": "ESNext",
     "skipLibCheck": true,
+    "composite": true,
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -12,6 +13,7 @@
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
+    "emitDeclarationOnly": true,
 
     /* Linting */
     "strict": true,
