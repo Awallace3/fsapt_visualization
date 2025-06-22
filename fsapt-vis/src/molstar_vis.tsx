@@ -132,11 +132,18 @@ const spec: PluginUISpec = {
     [PluginConfig.Viewport.ShowSettings, true],
     [PluginConfig.Viewport.ShowSelectionMode, true],
     [PluginConfig.Viewport.ShowAnimation, true],
+    [PluginConfig.Viewport.ShowTrajectoryControls, true],
+    [PluginConfig.Viewport.ShowScreenshotControls, true],
+
     [PluginConfig.State.DefaultServer, true],
     [PluginConfig.State.CurrentServer, true],
+
     [PluginConfig.VolumeStreaming.DefaultServer, true],
+
     [PluginConfig.Download.DefaultPdbProvider, true],
     [PluginConfig.Download.DefaultEmdbProvider, true],
+
+
   ],
 };
 console.log("Plugin spec:", spec);

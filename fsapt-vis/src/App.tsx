@@ -6,9 +6,7 @@ function App() {
   return (
     <div>
       <h1>FSAPT Visualization</h1>
-      <div>
-        <FsaptVisualizationApp/>
-      </div>
+      <FsaptVisualizationApp/>
     </div>
   );
 }
