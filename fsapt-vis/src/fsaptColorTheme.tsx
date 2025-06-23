@@ -31,11 +31,10 @@ export function CustomPerAtomColorTheme(
     }
     return ColorNames.blue;
   };
-
   return {
     factory: CustomPerAtomColorTheme,
     granularity: "instance",
-    color: color,
+    color,
     props: props,
     description: "Per atom color color theme",
   };
