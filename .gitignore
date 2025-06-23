@@ -193,3 +193,5 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 node_modules
+package-lock.json
+tsconfig.tsbuildinfo
