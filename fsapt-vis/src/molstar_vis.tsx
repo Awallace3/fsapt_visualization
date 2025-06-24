@@ -1,39 +1,39 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Plugin } from "molstar/lib/mol-plugin-ui/plugin";
+import { ColorTheme } from "molstar/src/mol-theme/color";
+import { Plugin } from "molstar/src/mol-plugin-ui/plugin";
 import {
   Structure,
-} from "molstar/lib/mol-model/structure";
-import { PluginStateObject as PSO } from "molstar/lib/mol-plugin-state/objects";
-import { type PluginLayoutControlsDisplay } from "molstar/lib/mol-plugin/layout";
-import { PluginUIContext } from "molstar/lib/mol-plugin-ui/context";
+} from "molstar/src/mol-model/structure";
+import { PluginStateObject as PSO } from "molstar/src/mol-plugin-state/objects";
+import { type PluginLayoutControlsDisplay } from "molstar/src/mol-plugin/layout";
+import { PluginUIContext } from "molstar/src/mol-plugin-ui/context";
 import {
   DefaultPluginUISpec,
   type PluginUISpec,
-} from "molstar/lib/mol-plugin-ui/spec";
-import { PluginBehaviors } from "molstar/lib/mol-plugin/behavior";
-import { PluginConfig } from "molstar/lib/mol-plugin/config";
-import { PluginSpec } from "molstar/lib/mol-plugin/spec";
-import { ColorNames } from "molstar/lib/mol-util/color/names";
-import { Theme } from "molstar/lib/mol-theme/theme";
-import { ColorTheme } from "molstar/lib/mol-theme/color";
-import { Color } from "molstar/lib/mol-util/color";
-import "molstar/lib/mol-util/polyfill";
-import { ObjectKeys } from "molstar/lib/mol-util/type-helpers";
-import { StructureFocusRepresentation } from "molstar/lib/mol-plugin/behavior/dynamic/selection/structure-focus-representation";
+} from "molstar/src/mol-plugin-ui/spec";
+import { PluginBehaviors } from "molstar/src/mol-plugin/behavior";
+import { PluginConfig } from "molstar/src/mol-plugin/config";
+import { PluginSpec } from "molstar/src/mol-plugin/spec";
+import { ColorNames } from "molstar/src/mol-util/color/names";
+import { Theme } from "molstar/src/mol-theme/theme";
+import { Color } from "molstar/src/mol-util/color";
+import "molstar/src/mol-util/polyfill";
+import { ObjectKeys } from "molstar/src/mol-util/type-helpers";
+import { StructureFocusRepresentation } from "molstar/src/mol-plugin/behavior/dynamic/selection/structure-focus-representation";
 import {
-  // type CustomAtomColorThemeParams,
+  type CustomAtomColorThemeParams,
   CustomPerAtomColorThemeProvider,
-  // CustomPerAtomColorTheme,
+  CustomPerAtomColorTheme,
   getPerAtomColorThemeParams,
 } from "./fsaptColorTheme.tsx";
 import {
   createStructureColorThemeParams,
   createStructureRepresentationParams,
-} from "molstar/lib/mol-plugin-state/helpers/structure-representation-params";
-// import { atoms } from "molstar/lib/mol-model/structure/query/queries/generators";
-// import { QueryContext } from "molstar/lib/mol-model/structure/query/context";
-// import { Script } from "molstar/lib/mol-script/script";
-// import { AtomIdColorThemeProvider, AtomIdColorTheme  } from "molstar/lib/mol-theme/color/atom-id"
+} from "molstar/src/mol-plugin-state/helpers/structure-representation-params";
+import { atoms } from "molstar/src/mol-model/structure/query/queries/generators";
+import { QueryContext } from "molstar/src/mol-model/structure/query/context";
+import { Script } from "molstar/src/mol-script/script";
+import { AtomIdColorThemeProvider, AtomIdColorTheme  } from "molstar/src/mol-theme/color/atom-id"
 
 interface FsaptData {
   atom_indices: number[];
@@ -152,7 +152,6 @@ const spec: PluginUISpec = {
     [PluginConfig.Download.DefaultEmdbProvider, true],
   ],
 };
-console.log("Plugin spec:", spec);
 
 export async function loadStructure(
   ctx: PluginUIContext,
@@ -167,18 +166,15 @@ export async function loadStructure(
     data,
     options?.format ?? ("mmcif" as any),
   );
-  console.log("traj:", trajectory);
   const structure = await ctx.builders.structure.hierarchy.applyPreset(
     trajectory,
     "default",
   );
 
-  structure?.representation;
-
   // testing
   // Get polymer representation
-  const polymer = structure.representation.representations.polymer;
-  const ligand = structure.representation.representations.ligand;
+  const polymer = structure?.representation.representations.polymer;
+  const ligand = structure?.representation.representations.ligand;
   // const componentManager = ctx.managers.structure.component;
   // console.log('componentManager:', componentManager );
 //   for (const structure of componentManager.currentStructures) {
@@ -214,9 +210,6 @@ export async function loadStructure(
 //   }
 // }
 
-
-
-
   // Create and apply custom representation
   const reprParamsStructureResetColor = createStructureRepresentationParams(
     ctx,
@@ -242,9 +235,8 @@ export async function loadStructure(
     .build()
     .to(polymer)
     .update(reprParamsStructureResetColor);
-  const fsaptTheme = getPerAtomColorThemeParams(ctx)
+  // const fsaptTheme = getPerAtomColorThemeParams(ctx)
   console.log("repre scheme params:", reprParamsResetColor);
-  console.log("Color scheme params:", colorSchemeParams);
 
   const structData = ctx.managers.structure.hierarchy.selection.structures[0]
     ?.components[0]?.cell.obj?.data;
@@ -256,7 +248,7 @@ export async function loadStructure(
   if (!structLength || !positions) {
     return structure;
   }
-  const components = ctx.managers.structure.hierarchy.selection.structures[0]?.components;
+  // const components = ctx.managers.structure.hierarchy.selection.structures[0]?.components;
   const update2 = ctx.build().to(ligand).update(
     reprParamsResetColor 
   );
@@ -266,17 +258,17 @@ export async function loadStructure(
   console.log('update2:', update2);
   await update.commit();
   await update2.commit();
-
-  const colorSchemeParams = createStructureColorThemeParams(
-      ctx,
-      ligand,
-      undefined,
-      'atom-id',
-      // fsaptTheme,
-    )
-  const update3 = ctx.build().to(ligand).update(
-    colorSchemeParams
-  );
+  //
+  // const colorSchemeParams = createStructureColorThemeParams(
+  //     ctx,
+  //     ligand,
+  //     undefined,
+  //     'atom-id',
+  //     // fsaptTheme,
+  //   )
+  // const update3 = ctx.build().to(ligand).update(
+  //   colorSchemeParams
+  // );
 
 
 // component.representations.forEach((rep: RepresentationData) => {
@@ -921,14 +913,5 @@ const statusStyle: React.CSSProperties = {
   fontSize: "12px",
   border: "1px solid",
 };
-
-// Export functions for external use
-export { FsaptVisualizationApp };
-
-// // Initialize the app
-// export async function initFsaptApp(element: string | HTMLDivElement) {
-//     const parent = typeof element === 'string' ? document.getElementById(element)! as HTMLDivElement : element;
-//     createRoot(parent).render(<FsaptVisualizationApp />);
-// }
 
 export default FsaptVisualizationApp;

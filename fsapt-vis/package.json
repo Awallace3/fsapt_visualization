@@ -12,7 +12,7 @@
   "dependencies": {
     "esbuild": "^0.25.5",
     "fp-ts": "^2.5.0",
-    "molstar": "^4.18.0",
+    "molstar": "https://github.com/molstar/molstar.git#3675c0a",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

@@ -1,41 +1,40 @@
 {
-  // "files": [],
   "compileOnSave": true,
-  // "include": ["src/**/*.ts"],
-  // "exclude": ["node_modules"],
   "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
-    "target": "ES2023",
-    "useDefineForClassFields": true,
+    // "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "skipLibCheck": true,
     "importsNotUsedAsValues": "remove",
     "removeComments": true,
     "allowJs": true,
     "checkJs": false,
-    /* Bundler mode */
-    "moduleResolution": "bundler",
+    // "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    // "moduleDetection": "force",
     "noEmit": true,
-    // "jsx": "react-jsx",
-    // permissions
-    // "maxNodeModuleJsDepth": 8,
 
     /* Linting */
-    "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+  "isolatedModules": false,
+  "verbatimModuleSyntax": false,
+  "composite": true,
+  "target": "ESNext",
+  "module": "ESNext",
+  "strict": true,
+  "jsx": "preserve",
+  "moduleResolution": "node",
+  "resolveJsonModule": true,
+  "experimentalDecorators": true,
+  "skipLibCheck": true,
+  "esModuleInterop": true,
+  "allowSyntheticDefaultImports": true,
+  "forceConsistentCasingInFileNames": true,
+  "useDefineForClassFields": true,
+  "noImplicitThis": false,
+  "sourceMap": true
   },
   "include": ["src", "vite.config.mts"],
   "exclude": ["node_modules"]
-  // "references": [
-  //   { "path": "./tsconfig.app.json" },
-  //   { "path": "./tsconfig.node.json" }
-  // ]
 }
