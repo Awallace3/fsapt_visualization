@@ -13,6 +13,14 @@
     "moduleDetection": "force",
     "noEmit": true,
 
+
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "importsNotUsedAsValues": "remove",
+    "removeComments": true,
+    "allowJs": true,
+    "checkJs": false,
+
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,
