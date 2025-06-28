@@ -29,7 +29,8 @@ export function CustomPerAtomColorTheme(
 
   // const color = (location: Location, isSecondary: boolean): Color => {
   const color = (location: LocationColor): Color => {
-    console.log("location:", location);
+    console.log("location :", location);
+    // console.log("StructLoc:", StructureElement.Location)
     if (StructureElement.Location.is(location)) {
       const idx = location.element as number;
       console.log('idx:', idx);
