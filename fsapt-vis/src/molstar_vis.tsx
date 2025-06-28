@@ -30,6 +30,7 @@ import {
   createStructureColorThemeParams,
   createStructureRepresentationParams,
 } from "molstar/src/mol-plugin-state/helpers/structure-representation-params";
+import { ParamDefinition as PD } from "molstar/src/mol-util/param-definition";
 import { atoms } from "molstar/src/mol-model/structure/query/queries/generators";
 import { QueryContext } from "molstar/src/mol-model/structure/query/context";
 import { Script } from "molstar/src/mol-script/script";
@@ -175,40 +176,6 @@ export async function loadStructure(
   // Get polymer representation
   const polymer = structure?.representation.representations.polymer;
   const ligand = structure?.representation.representations.ligand;
-  // const componentManager = ctx.managers.structure.component;
-  // console.log('componentManager:', componentManager );
-//   for (const structure of componentManager.currentStructures) {
-//   if (!structure.properties) {
-//       continue;
-//   }
-//   const cell = ctx.state.data.select(structure.properties.cell.transform.ref)[0];
-//   if (!cell || !cell.obj) {
-//     continue;
-//   }
-//   const structureData = (cell.obj as PSO.Molecule.Structure).data;
-//   for (const component of structure.components) {
-//     if (!component.cell.obj) {
-//       continue;
-//     }
-//     for (const rep of component.representations) {
-//       // For each representation of the component, display its type
-//       console.log(rep.cell?.transform?.params?.type?.name)
-//       // Also display the color for each atom
-//       const colorThemeName = rep.cell.transform.params?.colorTheme.name;
-//         console.log('colorThemeName:', colorThemeName);
-//       const colorThemeParams = rep.cell.transform.params?.colorTheme.params;
-//       const theme = ctx.representation.structure.themes.colorThemeRegistry.create(
-//         colorThemeName || '',
-//         { structure: structureData },
-//         colorThemeParams
-//       ) as ColorTheme<typeof colorThemeParams>;
-//         console.log('theme:', theme);
-//       Structure.eachAtomicHierarchyElement(component.cell.obj.data, {
-//         atom: loc => console.log(theme.color(loc, false))
-//       });
-//     }
-//   }
-// }
 
   // Create and apply custom representation
   const reprParamsStructureResetColor = createStructureRepresentationParams(
@@ -231,48 +198,89 @@ export async function loadStructure(
     },
   );
 
-  const update = await ctx
-    .build()
-    .to(polymer)
-    .update(reprParamsStructureResetColor);
-  const fsaptTheme = getPerAtomColorThemeParams(ctx)
-  console.log("repre scheme params:", reprParamsResetColor);
-
   const structData = ctx.managers.structure.hierarchy.selection.structures[0]
     ?.components[0]?.cell.obj?.data;
-  console.log("Struct data:", structData);
-  const structLength = structData?.elementCount;
-  console.log("Structure length:", structLength);
-  const positions = structData?.elementLocations();
-  console.log("Positions:", positions);
-  if (!structLength || !positions) {
+  if (!structData) {
     return structure;
   }
-  const update2 = ctx.build().to(ligand).update(
-    reprParamsResetColor 
+
+  const atomIndices: number[] = [];
+  const atomColors: Color[] = [];
+  for (let i = 0; i < structData.elementCount; i++) {
+    atomIndices.push(i);
+    if (i % 2 === 0) {
+      atomColors.push(ColorNames.red);
+    } else {
+      atomColors.push(ColorNames.yellow);
+    }
+  }
+
+  const fsaptTheme: PD.Values<CustomAtomColorThemeParams> = {
+    indices: atomIndices,
+    colors: atomColors,
+  };
+
+  const polymerReprParams = createStructureRepresentationParams(
+    ctx,
+    undefined,
+    {
+      type: "backbone",
+      color: CustomPerAtomColorThemeProvider.name,
+      colorParams: fsaptTheme,
+    },
   );
 
-
-  console.log('update1:', update);
-  console.log('update2:', update2);
-  await update.commit();
-  await update2.commit();
-
-  ctx.representation.structure.themes.colorThemeRegistry.add(
-    CustomPerAtomColorThemeProvider,
-  )
-
-  const colorSchemeParams = createStructureColorThemeParams(
-      ctx,
-      ligand,
-      undefined,
-      CustomPerAtomColorThemeProvider.name,
-      fsaptTheme,
-    )
-  const update3 = ctx.build().to(ligand).update(
-    colorSchemeParams
+  const ligandReprParams = createStructureRepresentationParams(
+    ctx,
+    undefined,
+    {
+      type: "ball-and-stick",
+      color: CustomPerAtomColorThemeProvider.name,
+      colorParams: fsaptTheme,
+    },
   );
-  await update3.commit();
+
+  const polymerUpdate = ctx.build().to(polymer).update(polymerReprParams);
+  const ligandUpdate = ctx.build().to(ligand).update(ligandReprParams);
+
+  await polymerUpdate.commit();
+  await ligandUpdate.commit();
+
+  // Verify colorTheme
+  const componentManager = ctx.managers.structure.component;
+  console.log('componentManager:', componentManager );
+  for (const structure of componentManager.currentStructures) {
+  if (!structure.properties) {
+      continue;
+  }
+  const cell = ctx.state.data.select(structure.properties.cell.transform.ref)[0];
+  if (!cell || !cell.obj) {
+    continue;
+  }
+  const structureData = (cell.obj as PSO.Molecule.Structure).data;
+  for (const component of structure.components) {
+    if (!component.cell.obj) {
+      continue;
+    }
+    for (const rep of component.representations) {
+      // Also display the color for each atom
+      const colorThemeName = rep.cell.transform.params?.colorTheme.name;
+        console.log(rep.cell?.transform?.params?.type?.name, ' colorThemeName:', colorThemeName);
+      const colorThemeParams = rep.cell.transform.params?.colorTheme.params;
+      const theme = ctx.representation.structure.themes.colorThemeRegistry.create(
+        colorThemeName || '',
+        { structure: structureData },
+        colorThemeParams
+      ) as ColorTheme<typeof colorThemeParams>;
+        console.log('theme:', theme);
+      // Structure.eachAtomicHierarchyElement(component.cell.obj.data, {
+      //   atom: loc => console.log(theme.color(loc, false))
+      // });
+    }
+  }
+}
+
+
   return structure;
 }
 export async function applyFsaptColoring(
@@ -362,11 +370,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ plugin }) => {
     }
   };
   console.log("Loaded structure:", structRef.current);
-  if (structRef.current != undefined) {
-    console.log("Plugin and structure are ready.");
-    // logStructureData(plugin);
-    console.log("Locations:", structRef.current.elementLocations);
-  }
+  // if (structRef.current != undefined) {
+  //   // console.log("Plugin and structure are ready.");
+  //   // logStructureData(plugin);
+  //   // console.log("Locations:", structRef.current.elementLocations);
+  // }
 
   const handleFsaptVisualization = async () => {
     if (!plugin) {
@@ -728,6 +736,9 @@ const FsaptVisualizationApp: React.FC = () => {
         await newPlugin.init();
         setPlugin(newPlugin);
 
+        newPlugin.representation.structure.themes.colorThemeRegistry.add(
+          CustomPerAtomColorThemeProvider,
+        );
         // Load default structure
         await loadStructure(newPlugin, "https://models.rcsb.org/4hhb.bcif", {
           isBinary: true,

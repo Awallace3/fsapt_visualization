@@ -1,10 +1,10 @@
 import { type ThemeDataContext } from "molstar/src/mol-theme/theme";
 import { ParamDefinition as PD } from "molstar/src/mol-util/param-definition";
-import { ColorTheme } from "molstar/src/mol-theme/color";
+import { LocationColor, ColorTheme } from "molstar/src/mol-theme/color";
 import { ColorNames } from "molstar/src/mol-util/color/names";
 import { Color } from "molstar/src/mol-util/color";
 import { StructureElement } from "molstar/src/mol-model/structure";
-import { type Location } from "molstar/src/mol-model/structure/structure/element/location";
+// import { type Location } from "molstar/src/mol-model/structure/structure/element/location";
 
 export const CustomAtomColorThemeParams = {
   indices: PD.Value<number[]>([]),
@@ -20,23 +20,29 @@ export function CustomPerAtomColorTheme(
   props: PD.Values<CustomAtomColorThemeParams>,
 ): ColorTheme<CustomAtomColorThemeParams> {
   const colorMap = new Map<number, Color>();
-  const color = (location: Location): Color => {
-    for (let i = 0; i < props.colors.length; i++) {
+  if (props.indices && props.colors) {
+    for (let i = 0; i < props.indices.length; i++) {
       colorMap.set(props.indices[i], props.colors[i]);
     }
+  }
+  console.log("CustomPerAtomColorTheme", props, colorMap);
 
+  // const color = (location: Location, isSecondary: boolean): Color => {
+  const color = (location: LocationColor): Color => {
+    console.log("location:", location);
     if (StructureElement.Location.is(location)) {
       const idx = location.element as number;
-      return colorMap.get(idx) ?? ColorNames.gray;
+      console.log('idx:', idx);
+      return colorMap.get(idx) ?? ColorNames.yellow;
     }
-    return ColorNames.blue;
+    return ColorNames.yellow;
   };
   return {
     factory: CustomPerAtomColorTheme,
-    granularity: "instance",
+    granularity: "vertex",
     color,
     props: props,
-    description: "Per atom color color theme",
+    description: "A color theme that colors each atom based on its index.",
   };
 }
 
