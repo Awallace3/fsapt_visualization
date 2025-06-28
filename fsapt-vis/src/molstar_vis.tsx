@@ -235,7 +235,7 @@ export async function loadStructure(
     .build()
     .to(polymer)
     .update(reprParamsStructureResetColor);
-  // const fsaptTheme = getPerAtomColorThemeParams(ctx)
+  const fsaptTheme = getPerAtomColorThemeParams(ctx)
   console.log("repre scheme params:", reprParamsResetColor);
 
   const structData = ctx.managers.structure.hierarchy.selection.structures[0]
@@ -248,7 +248,6 @@ export async function loadStructure(
   if (!structLength || !positions) {
     return structure;
   }
-  // const components = ctx.managers.structure.hierarchy.selection.structures[0]?.components;
   const update2 = ctx.build().to(ligand).update(
     reprParamsResetColor 
   );
@@ -258,69 +257,28 @@ export async function loadStructure(
   console.log('update2:', update2);
   await update.commit();
   await update2.commit();
-  //
-  // const colorSchemeParams = createStructureColorThemeParams(
-  //     ctx,
-  //     ligand,
-  //     undefined,
-  //     'atom-id',
-  //     // fsaptTheme,
-  //   )
-  // const update3 = ctx.build().to(ligand).update(
-  //   colorSchemeParams
-  // );
 
+  ctx.representation.structure.themes.colorThemeRegistry.add(
+    CustomPerAtomColorThemeProvider,
+  )
 
-// component.representations.forEach((rep: RepresentationData) => {
-//     const colors: Color[] = rep.colors;
-//     const colorThemeParams = {
-//         name: 'custom-per-atom-color' as const,
-//         params: {
-//             colors: colors,
-//             indices: component.indices as number[]
-//         }
-//         newComponent
-//             .apply(StructureRepresentation3D,
-//                 createStructureRepresentationParams(ctx, structureRef.cell.obj?.data, {
-//                     type: rep.Kind as any,
-//                     color: 'custom-per-atom-color' as any,
-//                     colorParams: colorThemeParams,
-//             }));
-//     };
-// });
-
-  // Coloring
-//   for (let i = 0; i < structLength; i++) {
-//     const element = positions.move();
-//     // console.log("Element", i, ":", element);
-//     fsaptTheme.indices.defaultValue.push(i);
-//     fsaptTheme.colors.defaultValue.push(ColorNames.yellow);
-//   }
-//   const update2 = ctx.build().to(cartoon).update(
-// // export function createStructureColorThemeParams(ctx, structure, typeName, themeName, params) {
-//     createStructureColorThemeParams(
-//       ctx,
-//       cartoon,
-//       undefined,
-//       CustomPerAtomColorThemeProvider.name,
-//       fsaptTheme,
-//     )
-//   );
-//   await update.commit();
-//   await update2.commit();
-// //     const update2 = plugin.build();
-// // update
-// //       .to(cartoon)
-// //       .apply(StateTransforms.Representation.OverpaintStructureRepresentation3DFromScript, params);
-// //
+  const colorSchemeParams = createStructureColorThemeParams(
+      ctx,
+      ligand,
+      undefined,
+      CustomPerAtomColorThemeProvider.name,
+      fsaptTheme,
+    )
+  const update3 = ctx.build().to(ligand).update(
+    colorSchemeParams
+  );
+  await update3.commit();
   return structure;
 }
 export async function applyFsaptColoring(
   plugin: PluginUIContext,
   fsaptData: FsaptData,
 ) {
-  // try {
-  // Get the structure
   const structures = plugin.managers.structure.hierarchy.current.structures;
   if (structures.length === 0) {
     throw new Error("No structure loaded");
@@ -355,50 +313,6 @@ interface StatusMessage {
   message: string;
   type: "success" | "error" | "info";
 }
-
-// function logStructureData(
-//   plugin: PluginUIContext,
-// ) {
-//   console.log("logStructureData()");
-//   const componentManager = plugin.managers.structure.component;
-//   for (const structure of componentManager.currentStructures) {
-//     if (!structure.properties) {
-//       continue;
-//     }
-//     const cell =
-//       plugin.state.data.select(structure.properties.cell.transform.ref)[0];
-//     if (!cell || !cell.obj) {
-//       continue;
-//     }
-//     const structureData = (cell.obj as PSO.Molecule.Structure).data;
-//     for (const component of structure.components) {
-//       if (!component.cell.obj) {
-//         continue;
-//       }
-//       // For each component in each structure, display the content of the selection
-//       Structure.eachAtomicHierarchyElement(component.cell.obj.data, {
-//         atom: (location) => console.log(location.element),
-//       });
-//       for (const rep of component.representations) {
-//         // For each representation of the component, display its type
-//         console.log(rep.cell?.transform?.params?.type?.name);
-//
-//         // Also display the color for each atom
-//         const colorThemeName = rep.cell.transform.params?.colorTheme.name;
-//         const colorThemeParams = rep.cell.transform.params?.colorTheme.params;
-//         const theme = plugin.representation.structure.themes.colorThemeRegistry
-//           .create(
-//             colorThemeName || "",
-//             { structure: structureData },
-//             colorThemeParams,
-//           ) as ColorTheme<typeof colorThemeParams>;
-//         Structure.eachAtomicHierarchyElement(component.cell.obj.data, {
-//           atom: (loc) => console.log(theme.color(loc, false)),
-//         });
-//       }
-//     }
-//   }
-// }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({ plugin }) => {
   const [structureUrl, setStructureUrl] = useState(
@@ -813,9 +727,6 @@ const FsaptVisualizationApp: React.FC = () => {
         const newPlugin = new PluginUIContext(spec);
         await newPlugin.init();
         setPlugin(newPlugin);
-        newPlugin.representation.structure.themes.colorThemeRegistry.add(
-          CustomPerAtomColorThemeProvider,
-        );
 
         // Load default structure
         await loadStructure(newPlugin, "https://models.rcsb.org/4hhb.bcif", {

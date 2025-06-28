@@ -1,10 +1,10 @@
-import { type ThemeDataContext } from "molstar/lib/mol-theme/theme";
-import { ParamDefinition as PD } from "molstar/lib/mol-util/param-definition";
-import { ColorTheme } from "molstar/lib/mol-theme/color";
-import { ColorNames } from "molstar/lib/mol-util/color/names";
-import { Color } from "molstar/lib/mol-util/color";
-import { StructureElement } from "molstar/lib/mol-model/structure";
-import { type Location } from "molstar/lib/mol-model/structure/structure/element/location";
+import { type ThemeDataContext } from "molstar/src/mol-theme/theme";
+import { ParamDefinition as PD } from "molstar/src/mol-util/param-definition";
+import { ColorTheme } from "molstar/src/mol-theme/color";
+import { ColorNames } from "molstar/src/mol-util/color/names";
+import { Color } from "molstar/src/mol-util/color";
+import { StructureElement } from "molstar/src/mol-model/structure";
+import { type Location } from "molstar/src/mol-model/structure/structure/element/location";
 
 export const CustomAtomColorThemeParams = {
   indices: PD.Value<number[]>([]),

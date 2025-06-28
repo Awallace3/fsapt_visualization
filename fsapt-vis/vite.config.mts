@@ -8,10 +8,28 @@ export default defineConfig({
     //   'molstar': 'https://cdn.jsdelivr.net/gh/molstar/molstar@dev/dist/molstar.js',
     // },
   },
-  optimizeDeps: { 
-      include: [
+  optimizeDeps: {
+    include: [
         "molstar/lib/mol-plugin-ui",
+        "style-to-js",
+        "util",
+        "debug",
+        "esbuild",
+        "fp-ts",
+        "react",
+        "react-dom",
+        "@eslint/js",
+        "@vitejs/plugin-react",
+        "eslint",
+        "eslint-plugin-react-hooks",
+        "eslint-plugin-react-refresh",
+        "globals",
+        "typescript",
+        "typescript-eslint",
+        "vite",
+        "extend",
       ],
-    esbuildOptions: { loader: { ".js": "jsx" } } },
+    esbuildOptions: { loader: { ".js": "jsx" } },
+  },
   plugins: [react()],
 });
