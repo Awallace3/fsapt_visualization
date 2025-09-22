@@ -82,7 +82,7 @@ const spec: PluginUISpec = {
   actions: defaultSpec.actions,
   behaviors: [
     // Turns residues to ball-and-stick within 5 angstroms
-    PluginSpec.Behavior(StructureFocusRepresentation),
+    // PluginSpec.Behavior(StructureFocusRepresentation),
 
     PluginSpec.Behavior(PluginBehaviors.Representation.HighlightLoci),
     PluginSpec.Behavior(PluginBehaviors.Representation.SelectLoci),
@@ -206,25 +206,55 @@ export async function loadStructure(
 
   const atomIndices: number[] = [];
   const atomColors: Color[] = [];
+  const x: number[] = [];
+  const y: number[] = [];
+  const z: number[] = [];
+  // if (structData) {
+  //  let cnt = 0;
+  //   console.log("--- Atom Coordinates ---");
+  //   Structure.eachAtomicHierarchyElement(structData, {
+  //     atom: location => {
+  //       const { unit, element } = location;
+  //       const x = unit.conformation.coordinates.x[element];
+  //       const y = unit.conformation.coordinates.y[element];
+  //       const z = unit.conformation.coordinates.z[element];
+  //       console.log(`Atom Index element: ${element}`, x, y, z);
+  //       cnt++;
+  //       atomIndices.push(cnt);
+  //       if (cnt % 2 === 0) {
+  //         atomColors.push(ColorNames.red);
+  //       } else {
+  //         atomColors.push(ColorNames.blue);
+  //       }
+  //     }
+  //   });
+  //   console.log("------------------------");
+  // }
+  // 16.064 -0.8290000000000001 25.697
   for (let i = 0; i < structData.elementCount; i++) {
-    atomIndices.push(i);
     if (i % 2 === 0) {
       atomColors.push(ColorNames.red);
     } else {
-      atomColors.push(ColorNames.yellow);
+      atomColors.push(ColorNames.blue);
     }
+    atomIndices.push(i);
   }
 
   const fsaptTheme: PD.Values<CustomAtomColorThemeParams> = {
     indices: atomIndices,
+    // x,
+    // y,
+    // z,
     colors: atomColors,
   };
+  console.log("fsaptTheme:", fsaptTheme);
 
   const polymerReprParams = createStructureRepresentationParams(
     ctx,
     undefined,
     {
-      type: "backbone",
+      // type: "cartoon",
+      type: "ball-and-stick",
       color: CustomPerAtomColorThemeProvider.name,
       colorParams: fsaptTheme,
     },
@@ -245,6 +275,8 @@ export async function loadStructure(
 
   await polymerUpdate.commit();
   await ligandUpdate.commit();
+
+
 
   // Verify colorTheme
   const componentManager = ctx.managers.structure.component;

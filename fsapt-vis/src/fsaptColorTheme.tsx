@@ -1,10 +1,10 @@
 import { type ThemeDataContext } from "molstar/src/mol-theme/theme";
 import { ParamDefinition as PD } from "molstar/src/mol-util/param-definition";
-import { LocationColor, ColorTheme } from "molstar/src/mol-theme/color";
+import { ColorTheme } from "molstar/src/mol-theme/color";
 import { ColorNames } from "molstar/src/mol-util/color/names";
 import { Color } from "molstar/src/mol-util/color";
-import { StructureElement } from "molstar/src/mol-model/structure";
-// import { type Location } from "molstar/src/mol-model/structure/structure/element/location";
+import { StructureElement, Unit } from "molstar/src/mol-model/structure";
+import { type Location } from "molstar/src/mol-model/location";
 
 export const CustomAtomColorThemeParams = {
   indices: PD.Value<number[]>([]),
@@ -19,31 +19,42 @@ export function CustomPerAtomColorTheme(
   ctx: ThemeDataContext,
   props: PD.Values<CustomAtomColorThemeParams>,
 ): ColorTheme<CustomAtomColorThemeParams> {
-  const colorMap = new Map<number, Color>();
+  const absIndexColorMap = new Map<number, Color>();
   if (props.indices && props.colors) {
     for (let i = 0; i < props.indices.length; i++) {
-      colorMap.set(props.indices[i], props.colors[i]);
+      absIndexColorMap.set(props.indices[i], props.colors[i]);
     }
   }
-  console.log("CustomPerAtomColorTheme", props, colorMap);
 
-  // const color = (location: Location, isSecondary: boolean): Color => {
-  const color = (location: LocationColor): Color => {
-    console.log("location :", location);
-    // console.log("StructLoc:", StructureElement.Location)
-    if (StructureElement.Location.is(location)) {
-      const idx = location.element as number;
-      console.log('idx:', idx);
-      return colorMap.get(idx) ?? ColorNames.yellow;
+  const unitStartIndexMap = new Map<number, number>();
+  let totalElements = 0;
+  if (ctx.structure) {
+    for (const unit of ctx.structure.units) {
+      unitStartIndexMap.set(unit.id, totalElements);
+      totalElements += unit.elements.length;
     }
-    return ColorNames.yellow;
+  }
+
+  const color = (location: Location, isSecondary: boolean): Color => {
+    if (StructureElement.Location.is(location)) {
+      const unitStartIndex = unitStartIndexMap.get(location.unit.id);
+      if (unitStartIndex !== undefined) {
+        const absoluteIndex = unitStartIndex + location.element;
+        const foundColor = absIndexColorMap.get(absoluteIndex);
+        if (foundColor !== undefined) {
+          return foundColor;
+        }
+      }
+    }
+    return ColorNames.gray; // Default color if not found
   };
+
   return {
     factory: CustomPerAtomColorTheme,
     granularity: "vertex",
     color,
     props: props,
-    description: "A color theme that colors each atom based on its index.",
+    description: "A color theme that colors each atom based on its absolute index.",
   };
 }
 
