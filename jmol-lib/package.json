@@ -7,14 +7,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "jsmol": "cp -r node_modules/react-molviewer/dist/jsmol public/jsmol",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
+    "axios": "^1.6.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "axios": "^1.6.0"
+    "react-molviewer": "^1.4.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.37",
