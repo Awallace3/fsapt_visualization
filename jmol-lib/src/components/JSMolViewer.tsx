@@ -106,7 +106,13 @@ const JSMolViewer: React.FC<JSMolViewerProps> = ({
           "wireframe 0.15",
           "color atoms cpk",
           "set antialiasDisplay true",
-          "background grey",
+          "set antialias2D true",
+          "set quality high",
+          "set perspectiveDepth true",
+          "set showAxes false",
+          "set showBoundBox false",
+          "background white",
+          "set pickingRadius 0.1"
         ]);
         console.log("Molecule content set");
       } catch (error) {

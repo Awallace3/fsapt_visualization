@@ -38,14 +38,15 @@
   overflow-y: auto;
 }
 
-.main-viewer {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: #f5f5f5;
-  min-height: 500px;
-}
+  .main-viewer {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #f5f5f5;
+    min-height: 600px;
+    height: 100vh;
+  }
 
 .panel-section {
   margin-bottom: 1.5rem;
