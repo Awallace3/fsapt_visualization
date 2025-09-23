@@ -68,133 +68,87 @@ const JSMolViewer: React.FC<JSMolViewerProps> = ({
         const containerHeight = viewerRef.current.clientHeight || 600;
         console.log('Container size:', containerWidth, 'x', containerHeight);
 
-        // Make JSMol smaller - 70% of container size, max 600x400
-        const jsmolWidth = Math.min(containerWidth * 0.7, 600);
-        const jsmolHeight = Math.min(containerHeight * 0.7, 400);
+        // Full size for better viewing
+        const jsmolWidth = containerWidth;
+        const jsmolHeight = containerHeight;
 
         console.log('Initializing JSMol with size:', jsmolWidth, 'x', jsmolHeight);
 
         // JSMol initialization
         const Info = {
-          width: jsmolWidth + 'px',
-          height: jsmolHeight + 'px',
-          debug: true,  // Enable debug for troubleshooting
-          color: 'black',  // White background instead of black
+          width: jsmolWidth,
+          height: jsmolHeight,
+          debug: false,
+          backgroundColor: 'white',
           addSelectionOptions: false,
           use: 'HTML5',
           j2sPath: 'https://chemapps.stolaf.edu/jmol/jsmol/j2s',
-          script: `background black; set antialiasDisplay on; set displayCellParameters false;
-                   set picking SELECT ATOM; set picking callback "atomPicked";
-                   set antialiasDisplay on; set displayCellParameters false;`
+          script: 'set antialiasDisplay true; background white;'
         };
 
         console.log('JSMol Info object:', Info);
 
-        // Try different JSMol initialization approaches
-        try {
-          console.log('Available JSMol methods:', Object.keys(window.Jmol));
+        // Use standard JSMol.getAppletHtml
+        const html = window.Jmol.getAppletHtml('jmolApplet', Info);
+        if (viewerRef.current) {
+          viewerRef.current.innerHTML = html;
+          console.log('JSMol HTML inserted');
 
-          // Method 1: Try the modern JSMol API
-          if (typeof window.Jmol.getAppletHtml === 'function') {
-            console.log('Using JSMol.getAppletHtml method');
-            const html = window.Jmol.getAppletHtml('jmolApplet', Info);
-            if (viewerRef.current) {
-              viewerRef.current.innerHTML = html;
-              console.log('JSMol HTML inserted');
-            }
-          }
-          // Method 2: Try setApplet with container
-          else if (typeof window.Jmol.setApplet === 'function') {
-            console.log('Using JSMol.setApplet method');
-            jmolAppletRef.current = window.Jmol.setApplet(Info, viewerRef.current);
-            console.log('JSMol applet created with setApplet:', typeof jmolAppletRef.current);
-          }
-          // Method 3: Try getApplet and check return type
-          else if (typeof window.Jmol.getApplet === 'function') {
-            console.log('Using JSMol.getApplet method');
-            const applet = window.Jmol.getApplet('jmolApplet', Info);
-            console.log('getApplet returned:', typeof applet, applet);
-
-            if (viewerRef.current && typeof applet === 'string') {
-              // If it returns HTML string, insert it
-              viewerRef.current.innerHTML = applet;
-              console.log('JSMol HTML string inserted');
-            } else if (viewerRef.current && applet && typeof applet === 'object' && 'nodeType' in applet) {
-              // If it's a DOM element, append it
-              viewerRef.current.appendChild(applet);
-              console.log('JSMol DOM element appended');
+          // Wait for applet to be ready and set reference
+          setTimeout(() => {
+            jmolAppletRef.current = window.Jmol.getApplet('jmolApplet');
+            if (jmolAppletRef.current) {
+              console.log('Jmol applet initialized successfully');
+              window.Jmol.script(jmolAppletRef.current, 'set picking SELECT;');
             } else {
-              console.warn('Unexpected return type from getApplet');
+              console.error('Failed to get Jmol applet reference');
+              setError('Failed to initialize 3D viewer');
             }
-          } else {
-            throw new Error('No suitable JSMol initialization method found');
-          }
-        } catch (initError) {
-          console.error('JSMol initialization failed:', initError);
-          const errorMessage = initError instanceof Error ? initError.message : 'Unknown error';
-          setError(`Failed to create 3D viewer: ${errorMessage}`);
-          return;
+          }, 1500);
         }
-
-        // Store reference for later use
-        console.log('JSMol initialization completed successfully');
-
-        // Set up atom selection callback with longer timeout
-        setTimeout(() => {
-          if (jmolAppletRef.current) {
-            console.log('Setting up JSMol scripts...');
-            try {
-              window.Jmol.script(jmolAppletRef.current, `
-                set picking SELECT ATOM;
-                set picking callback "atomPicked";
-                set antialiasDisplay on;
-                set displayCellParameters false;
-                background white;
-              `);
-              console.log('JSMol scripts executed successfully');
-            } catch (scriptError) {
-              console.error('Failed to execute JSMol script:', scriptError);
-            }
-
-            // Define the callback function
-            (window as any).atomPicked = (atomInfo: string) => {
-              console.log('Atom picked:', atomInfo);
-              // Parse atom info and call onAtomSelect
-              // This will need to be implemented based on JSMol's atom info format
-            };
-          }
-        }, 2000); // Increased timeout for better initialization
 
       } catch (error) {
         console.error('Failed to initialize JSMol:', error);
-        setError('Failed to initialize 3D viewer');
+        setError('Failed to initialize 3D viewer: ' + (error instanceof Error ? error.message : 'Unknown error'));
       }
     }
   }, [jsmolLoaded]);
 
   // Load molecule when moleculeString changes
   useEffect(() => {
-    if (jmolAppletRef.current && moleculeString) {
+    if (jmolAppletRef.current && moleculeString.trim()) {
       try {
+        console.log('Loading molecule...');
         // Convert qcelemental format to XYZ format for JSMol
         const xyzString = convertQcelementalToXYZ(moleculeString);
-        window.Jmol.script(jmolAppletRef.current, `load data "model"\\n${xyzString}\\nend "model"; spacefill 0.5;`);
+        const script = `load DATA "model"
+${xyzString}
+end "model";
+zoom 100;
+center;
+spacefill 20%;
+wireframe 0.15;
+color atoms cpk;
+select *;`;
+        window.Jmol.script(jmolAppletRef.current, script);
+        console.log('Molecule loaded successfully');
       } catch (error) {
         console.error('Failed to load molecule:', error);
+        setError('Failed to load molecule: ' + (error instanceof Error ? error.message : 'Unknown error'));
       }
     }
   }, [moleculeString]);
 
   // Update atom colors when energy data or selected component changes
   useEffect(() => {
-    if (jmolAppletRef.current && energyData) {
+    if (jmolAppletRef.current && energyData && selectedComponent) {
       updateAtomColors();
     }
-  }, [energyData, selectedComponent]);
+  }, [energyData, selectedComponent, jmolAppletRef.current]);
 
   // Update visual selection indicators
   useEffect(() => {
-    if (jmolAppletRef.current) {
+    if (jmolAppletRef.current && atomSelection) {
       updateSelectionHighlights();
     }
   }, [atomSelection]);
@@ -221,42 +175,43 @@ const JSMolViewer: React.FC<JSMolViewerProps> = ({
       }
     }
 
-    return `${atomCount}\\nConverted from qcelemental\\n${xyzLines.join('\\n')}`;
+    return `${atomCount}\nMolecular Dimer\n${xyzLines.join('\n')}`;
   };
 
   const getElementSymbol = (atomicNumber: number): string => {
-    const elements = ['', 'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne',
-                     'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar'];
+    const elements = [
+      '', 'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne',
+      'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K', 'Ca'
+    ];
     return elements[atomicNumber] || `El${atomicNumber}`;
   };
 
   const updateAtomColors = () => {
-    if (!energyData) return;
+    if (!energyData || !jmolAppletRef.current) return;
 
-    // For now, apply a simple color scheme
-    // This will need to be enhanced to use actual energy values
-    const colorScript = `
-      select all;
-      color atoms cpk;
+    // Simple coloring for now: color molecule A red, B blue
+    // TODO: Color based on energy values
+    const numA = energyData.atom_counts.molecule_a;
+    const script = `
+      select atomno 1-${numA}; color red;
+      select atomno ${numA + 1}-*; color blue;
       select none;
     `;
-
-    window.Jmol.script(jmolAppletRef.current, colorScript);
+    window.Jmol.script(jmolAppletRef.current, script);
   };
 
   const updateSelectionHighlights = () => {
     if (!jmolAppletRef.current) return;
 
     // Clear previous selections
-    window.Jmol.script(jmolAppletRef.current, 'select none; halo off;');
+    window.Jmol.script(jmolAppletRef.current, 'select none; set showSelections false;');
 
     // Highlight selected atoms
     const selectedAtoms: number[] = [];
 
-    // Convert atom indices to JSMol atom numbers (1-based)
+    // Convert atom indices to JSMol atom numbers (0-based in selection, but atomno 1-based)
     atomSelection.moleculeA.forEach(index => selectedAtoms.push(index + 1));
     atomSelection.moleculeB.forEach(index => {
-      // Offset by molecule A atom count
       if (energyData) {
         selectedAtoms.push(index + 1 + energyData.atom_counts.molecule_a);
       }
@@ -264,7 +219,8 @@ const JSMolViewer: React.FC<JSMolViewerProps> = ({
 
     if (selectedAtoms.length > 0) {
       const atomList = selectedAtoms.join(' ');
-      window.Jmol.script(jmolAppletRef.current, `select atomno=${atomList}; halo on; color halo yellow;`);
+      const script = `select atomno ${atomList}; spacefill 50%; color yellow;`;
+      window.Jmol.script(jmolAppletRef.current, script);
     }
   };
 
