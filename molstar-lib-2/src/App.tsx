@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import MoleculeInput from './components/MoleculeInput';
-import JSMolViewer from './components/JSMolViewer';
+import MolstarViewer from './components/MolstarViewer';
 import EnergyLegend from './components/EnergyLegend';
 import ComponentSelector from './components/ComponentSelector';
 import AtomSelectionPanel from './components/AtomSelectionPanel';
@@ -89,7 +89,7 @@ function App() {
           )}
         </div>
         <div className="main-viewer">
-          <JSMolViewer
+          <MolstarViewer
             moleculeString={moleculeString}
             energyData={energyData}
             selectedComponent={selectedComponent}

@@ -2,37 +2,39 @@
 
 ## Build/Lint/Test Commands
 
-### JavaScript/TypeScript
-- **Build UI**: `npm run build-ui` - Builds React UI with esbuild
-- **Build CSS**: `npm run css` - Compiles SCSS to CSS
-- **Watch mode**: `npm run watch` - Development build with file watching
+### JavaScript/TypeScript (Vite + React)
+- **Dev**: `npm run dev` - Vite dev server with HMR
+- **Build**: `npm run build` - Production build
+- **Lint**: `npm run lint` - ESLint TS/TSX
+- **JSMol**: `npm run jsmol` - Copy JSMol assets
+- **Preview**: `npm run preview` - Local serve build
 
-### Python
-- **Run Flask server**: `python app.py` - Starts API server on port 5000
-- **No test framework configured** - Tests not yet implemented
+### Python (Flask)
+- **Run**: `python app.py` - API on port 5000
+- **Tests**: None; add pytest
 
 ### Testing
-- **Single test**: Not available - implement testing framework first
-- **API testing**: Use curl or UI health check when implemented
+- **Single test**: Not available; implement
+- **API**: curl endpoints
 
 ## Code Style Guidelines
 
 ### TypeScript/React
-- **Imports**: React first, then Molstar, then local imports
-- **Formatting**: 2-space indentation, lines <100 chars
-- **Types**: Define interfaces for props and data structures
-- **Naming**: camelCase variables/functions, PascalCase components
-- **Components**: Functional with hooks, const styles objects
-- **Error Handling**: try-catch with descriptive messages
+- **Imports**: React > external > local
+- **Formatting**: 2-space, <100 chars
+- **Types**: Interfaces for props
+- **Naming**: camelCase vars, PascalCase components
+- **Components**: Functional + hooks
+- **Errors**: try-catch, descriptive msgs
 
 ### Python
-- **Imports**: Standard library, third-party, then local
-- **Formatting**: PEP 8, 4-space indentation
-- **Naming**: snake_case variables/functions, PascalCase classes
-- **Error Handling**: try-except with logging, JSON responses
-- **Type Hints**: Include annotations for parameters/returns
+- **Imports**: std > 3rd > local
+- **Formatting**: PEP8, 4-space
+- **Naming**: snake_case funcs, PascalCase classes
+- **Errors**: try-except + JSON
+- **Hints**: Type annotations
 
 ### General
-- **Comments**: Docstrings for complex functions only
-- **Security**: Never log sensitive data, validate inputs
-- **Performance**: Handle async operations to avoid blocking
+- **Comments**: Docstrings only for complex
+- **Security**: Validate inputs, no secrets
+- **Perf**: Async ops, React memo
