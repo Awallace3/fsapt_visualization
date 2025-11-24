@@ -64,14 +64,50 @@ def predict_energies():
             'disp': float(energies[4])
         }
 
-        # Create placeholder Na×Nb matrices (all zeros for now)
-        # TODO: Implement actual pairwise energy decomposition
+        # Get coordinates (in Angstroms)
+        geom = mol.geometry * qcel.constants.bohr2angstroms
+        
+        # Split geometry into frag A and frag B
+        # We need to know which atoms belong to which fragment.
+        # qcelemental molecule has 'fragments' attribute which is list of indices.
+        frag_indices = mol.fragments
+        if len(frag_indices) != 2:
+             return jsonify({'error': 'Molecule must have exactly 2 fragments'}), 400
+             
+        indices_a = list(range(frag_indices[0][0], frag_indices[0][-1] + 1))
+        indices_b = list(range(frag_indices[1][0], frag_indices[1][-1] + 1))
+        
+        coords_a = geom[indices_a]
+        coords_b = geom[indices_b]
+        
+        na = len(indices_a)
+        nb = len(indices_b)
+        
+        # Calculate pairwise distances
+        dists = np.zeros((na, nb))
+        for i in range(na):
+            for j in range(nb):
+                d = np.linalg.norm(coords_a[i] - coords_b[j])
+                dists[i, j] = d
+                
+        # Simple model: Energy ~ 1/r^2 or similar?
+        # Let's use 1/d for electrostatics/induction and 1/d^6 for dispersion?
+        # For visualization, we just want to distribute the TOTAL energy.
+        # weight = 1/d^2
+        weights = 1.0 / (dists ** 2 + 0.1) # Avoid singularity
+        total_weight = np.sum(weights)
+        
+        # Distribute total energies
+        # We'll just distribute the 'total' component for now
+        total_e_val = float(energies[0])
+        pairwise_total = (weights / total_weight) * total_e_val
+        
         energies_matrices = {
-            'total': np.zeros((atom_count_a, atom_count_b)).tolist(),
-            'elst': np.zeros((atom_count_a, atom_count_b)).tolist(),
-            'exch': np.zeros((atom_count_a, atom_count_b)).tolist(),
-            'ind': np.zeros((atom_count_a, atom_count_b)).tolist(),
-            'disp': np.zeros((atom_count_a, atom_count_b)).tolist()
+            'total': pairwise_total.tolist(),
+            'elst': np.zeros((na, nb)).tolist(),
+            'exch': np.zeros((na, nb)).tolist(),
+            'ind': np.zeros((na, nb)).tolist(),
+            'disp': np.zeros((na, nb)).tolist()
         }
 
         response = {

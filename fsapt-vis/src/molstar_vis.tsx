@@ -34,13 +34,136 @@ import { ParamDefinition as PD } from "molstar/src/mol-util/param-definition";
 import { atoms } from "molstar/src/mol-model/structure/query/queries/generators";
 import { QueryContext } from "molstar/src/mol-model/structure/query/context";
 import { Script } from "molstar/src/mol-script/script";
-import { AtomIdColorThemeProvider, AtomIdColorTheme  } from "molstar/src/mol-theme/color/atom-id"
+import { AtomIdColorThemeProvider, AtomIdColorTheme } from "molstar/src/mol-theme/color/atom-id"
 
 interface FsaptData {
   atom_indices: number[];
   energy_contributions: number[];
   interaction_type: string;
   threshold?: number;
+  source_indices?: number[];
+}
+
+interface AtomData {
+  element: string;
+  x: number;
+  y: number;
+  z: number;
+  originalIndex: number;
+}
+
+function extractAtomsFromSelection(plugin: PluginUIContext): AtomData[] {
+  let selectionStructure: Structure | undefined;
+
+  // Inspect selection manager
+  const selectionManager = plugin.managers.structure.selection;
+
+  // Try to access entries if it exists (it's private but might be accessible in JS)
+  const entries = (selectionManager as any).entries;
+  if (entries && entries instanceof Map) {
+    entries.forEach((value, key) => {
+      if (value.selection && value.selection.elementCount > 0) {
+        // Find structure with this ID
+        const structRef = plugin.managers.structure.hierarchy.current.structures.find(s => s.cell.id === key);
+        if (structRef) {
+          const s = selectionManager.getStructure(structRef);
+          if (s) {
+            selectionStructure = s;
+          }
+        }
+      }
+    });
+  }
+
+  if (!selectionStructure) {
+    // Fallback: if we have only one structure and one selection entry, assume they match.
+    if (entries && entries instanceof Map && entries.size > 0 && plugin.managers.structure.hierarchy.current.structures.length === 1) {
+      const entry = entries.values().next().value;
+      if (entry && entry.selection && entry.selection.elementCount > 0) {
+        const current = plugin.managers.structure.hierarchy.current.structures[0];
+        // Try to force get structure
+        selectionStructure = selectionManager.getStructure(current);
+        if (!selectionStructure) {
+          // If getStructure fails, maybe we can construct it?
+          // But we need access to internal methods.
+          // Let's try to use the selection directly with the current structure.
+          // But we need a Structure object to iterate.
+          // Maybe we can use the 'structure' property of the entry if it exists?
+          if ((entry as any).structure) {
+            selectionStructure = (entry as any).structure; // This might be the selection structure?
+          }
+        }
+      }
+    }
+  }
+  if (!selectionStructure) {
+    const currentStructure = plugin.managers.structure.hierarchy.current.structures[0];
+    if (currentStructure) {
+      selectionStructure = selectionManager.getStructure(currentStructure);
+    }
+  }
+
+  if (!selectionStructure) {
+    return [];
+  }
+
+  const atoms: AtomData[] = [];
+
+  // We need the model to map indices.
+  // The selectionStructure is a subset of the root structure.
+  // We can get the parent model from it.
+
+  try {
+    // We need to map back to the original structure's indices.
+    // The selectionStructure units contain elements.
+    // We can just iterate them and get the properties.
+    // But we need the "originalIndex" which we defined as global index in the root structure.
+
+    // Let's rebuild the global map from the root structure of the selection
+    // (assuming selection comes from one root)
+    const rootStructure = selectionStructure.parent; // or use the one from hierarchy
+
+    // Fallback to hierarchy if parent is not set (it should be)
+    const rootStructData = rootStructure || plugin.managers.structure.hierarchy.current.structures[0].cell.obj?.data;
+
+    if (!rootStructData) {
+      return [];
+    }
+
+    const globalIndexMap = new Map<string, number>();
+    let globalIndex = 0;
+    for (const unit of rootStructData.units) {
+      for (let i = 0; i < unit.elements.length; i++) {
+        const modelAtomIndex = unit.elements[i];
+        globalIndexMap.set(`${unit.id}-${modelAtomIndex}`, globalIndex);
+        globalIndex++;
+      }
+    }
+
+    Structure.eachAtomicHierarchyElement(selectionStructure, {
+      atom: (location) => {
+        const { unit, element } = location;
+        const x = unit.conformation.coordinates.x[element];
+        const y = unit.conformation.coordinates.y[element];
+        const z = unit.conformation.coordinates.z[element];
+        const typeSymbol = unit.model.atomicHierarchy.atoms.type_symbol.value(unit.elements[element]);
+
+        const modelAtomIndex = unit.elements[element];
+        const originalIndex = globalIndexMap.get(`${unit.id}-${modelAtomIndex}`);
+
+        if (originalIndex !== undefined) {
+          atoms.push({
+            element: typeSymbol,
+            x, y, z,
+            originalIndex
+          });
+        }
+      }
+    });
+  } catch (e) {
+    console.error("Error iterating selection:", e);
+  }
+  return atoms;
 }
 
 const DefaultViewerOptions = {
@@ -159,162 +282,40 @@ export async function loadStructure(
   url: string,
   options?: { format?: string; isBinary?: boolean },
 ) {
-  const data = await ctx.builders.data.download({
-    url,
-    isBinary: options?.isBinary,
-  });
-  const trajectory = await ctx.builders.structure.parseTrajectory(
-    data,
-    options?.format ?? ("mmcif" as any),
-  );
-  const structure = await ctx.builders.structure.hierarchy.applyPreset(
-    trajectory,
-    "default",
-  );
+  console.log(`Loading structure from ${url} (format: ${options?.format})`);
+  try {
+    const data = await ctx.builders.data.download({
+      url,
+      isBinary: options?.isBinary,
+    });
 
-  // testing
-  // Get polymer representation
-  const polymer = structure?.representation.representations.polymer;
-  const ligand = structure?.representation.representations.ligand;
+    const trajectory = await ctx.builders.structure.parseTrajectory(
+      data,
+      options?.format ?? ("mmcif" as any),
+    );
+    console.log("Trajectory parsed:", trajectory);
 
-  // Create and apply custom representation
-  const reprParamsStructureResetColor = createStructureRepresentationParams(
-    ctx,
-    undefined,
-    {
-      type: "backbone",
-      color: "uniform",
-      colorParams: { value: ColorNames.gray },
-    },
-  );
+    // Try 'default' preset
+    const structure = await ctx.builders.structure.hierarchy.applyPreset(
+      trajectory,
+      "default",
+    );
+    console.log("applyPreset 'default' result:", structure);
 
-  const reprParamsResetColor = createStructureRepresentationParams(
-    ctx,
-    undefined,
-    {
-      type: "ball-and-stick",
-      color: "uniform",
-      colorParams: { value: ColorNames.aqua },
-    },
-  );
+    if (!structure) {
+      console.warn("applyPreset 'default' returned undefined");
+      return undefined;
+    }
 
-  const structData = ctx.managers.structure.hierarchy.selection.structures[0]
-    ?.components[0]?.cell.obj?.data;
-  if (!structData) {
+    console.log("Returning structure from loadStructure:", structure);
     return structure;
-  }
-
-  const atomIndices: number[] = [];
-  const atomColors: Color[] = [];
-  const x: number[] = [];
-  const y: number[] = [];
-  const z: number[] = [];
-  // if (structData) {
-  //  let cnt = 0;
-  //   console.log("--- Atom Coordinates ---");
-  //   Structure.eachAtomicHierarchyElement(structData, {
-  //     atom: location => {
-  //       const { unit, element } = location;
-  //       const x = unit.conformation.coordinates.x[element];
-  //       const y = unit.conformation.coordinates.y[element];
-  //       const z = unit.conformation.coordinates.z[element];
-  //       console.log(`Atom Index element: ${element}`, x, y, z);
-  //       cnt++;
-  //       atomIndices.push(cnt);
-  //       if (cnt % 2 === 0) {
-  //         atomColors.push(ColorNames.red);
-  //       } else {
-  //         atomColors.push(ColorNames.blue);
-  //       }
-  //     }
-  //   });
-  //   console.log("------------------------");
-  // }
-  // 16.064 -0.8290000000000001 25.697
-  for (let i = 0; i < structData.elementCount; i++) {
-    if (i % 2 === 0) {
-      atomColors.push(ColorNames.red);
-    } else {
-      atomColors.push(ColorNames.blue);
-    }
-    atomIndices.push(i);
-  }
-
-  const fsaptTheme: PD.Values<CustomAtomColorThemeParams> = {
-    indices: atomIndices,
-    // x,
-    // y,
-    // z,
-    colors: atomColors,
-  };
-  console.log("fsaptTheme:", fsaptTheme);
-
-  const polymerReprParams = createStructureRepresentationParams(
-    ctx,
-    undefined,
-    {
-      // type: "cartoon",
-      type: "ball-and-stick",
-      color: CustomPerAtomColorThemeProvider.name,
-      colorParams: fsaptTheme,
-    },
-  );
-
-  const ligandReprParams = createStructureRepresentationParams(
-    ctx,
-    undefined,
-    {
-      type: "ball-and-stick",
-      color: CustomPerAtomColorThemeProvider.name,
-      colorParams: fsaptTheme,
-    },
-  );
-
-  const polymerUpdate = ctx.build().to(polymer).update(polymerReprParams);
-  const ligandUpdate = ctx.build().to(ligand).update(ligandReprParams);
-
-  await polymerUpdate.commit();
-  await ligandUpdate.commit();
-
-
-
-  // Verify colorTheme
-  const componentManager = ctx.managers.structure.component;
-  console.log('componentManager:', componentManager );
-  for (const structure of componentManager.currentStructures) {
-  if (!structure.properties) {
-      continue;
-  }
-  const cell = ctx.state.data.select(structure.properties.cell.transform.ref)[0];
-  if (!cell || !cell.obj) {
-    continue;
-  }
-  const structureData = (cell.obj as PSO.Molecule.Structure).data;
-  for (const component of structure.components) {
-    if (!component.cell.obj) {
-      continue;
-    }
-    for (const rep of component.representations) {
-      // Also display the color for each atom
-      const colorThemeName = rep.cell.transform.params?.colorTheme.name;
-        console.log(rep.cell?.transform?.params?.type?.name, ' colorThemeName:', colorThemeName);
-      const colorThemeParams = rep.cell.transform.params?.colorTheme.params;
-      const theme = ctx.representation.structure.themes.colorThemeRegistry.create(
-        colorThemeName || '',
-        { structure: structureData },
-        colorThemeParams
-      ) as ColorTheme<typeof colorThemeParams>;
-        console.log('theme:', theme);
-      // Structure.eachAtomicHierarchyElement(component.cell.obj.data, {
-      //   atom: loc => console.log(theme.color(loc, false))
-      // });
-    }
+  } catch (e) {
+    console.error("Error in loadStructure:", e);
+    throw e;
   }
 }
 
 
-  return structure;
-}
 export async function applyFsaptColoring(
   plugin: PluginUIContext,
   fsaptData: FsaptData,
@@ -325,24 +326,57 @@ export async function applyFsaptColoring(
   }
 
   console.log("FSAPT Data received:", fsaptData);
-  console.log("Atom indices:", fsaptData.atom_indices);
-  console.log("Energy contributions:", fsaptData.energy_contributions);
 
-  // Calculate some basic statistics
-  const totalEnergy = fsaptData.energy_contributions.reduce(
-    (sum, energy) => sum + energy,
-    0,
+  // Calculate colors
+  const colors: Color[] = [];
+  const indices: number[] = [];
+
+  // 1. Color Source Atoms (Monomer A) - Green
+  if (fsaptData.source_indices) {
+    fsaptData.source_indices.forEach(idx => {
+      indices.push(idx);
+      colors.push(ColorNames.green);
+    });
+  }
+
+  // 2. Color Target Atoms (Monomer B) - Gradient
+  const maxAbsEnergy = Math.max(
+    ...fsaptData.energy_contributions.map(e => Math.abs(e)),
+    0.001
   );
-  const attractiveCount = fsaptData.energy_contributions.filter(
-    (e) => e < 0,
-  ).length;
-  const repulsiveCount = fsaptData.energy_contributions.filter(
-    (e) => e > 0,
-  ).length;
+  const scale = fsaptData.threshold || maxAbsEnergy;
 
-  console.log(`Total energy: ${totalEnergy.toFixed(2)} kcal/mol`);
-  console.log(`Attractive interactions: ${attractiveCount}`);
-  console.log(`Repulsive interactions: ${repulsiveCount}`);
+  fsaptData.energy_contributions.forEach((e, i) => {
+    const idx = fsaptData.atom_indices[i];
+    indices.push(idx);
+
+    let c: Color;
+    if (e < 0) {
+      // Attractive (Blue)
+      const ratio = Math.min(Math.abs(e) / scale, 1);
+      c = Color.interpolate(ColorNames.white, ColorNames.blue, ratio);
+    } else {
+      // Repulsive (Red)
+      const ratio = Math.min(e / scale, 1);
+      c = Color.interpolate(ColorNames.white, ColorNames.red, ratio);
+    }
+    colors.push(c);
+  });
+
+  const themeParams = {
+    indices: indices,
+    colors: colors,
+  };
+
+  const componentManager = plugin.managers.structure.component;
+  for (const structure of componentManager.currentStructures) {
+    const components = structure.components;
+    // Update all representations to use the new color theme
+    plugin.managers.structure.component.updateRepresentationsTheme(components, {
+      color: 'custom-per-atom-color',
+      colorParams: themeParams
+    });
+  }
 }
 
 interface ControlPanelProps {
@@ -356,9 +390,9 @@ interface StatusMessage {
 
 const ControlPanel: React.FC<ControlPanelProps> = ({ plugin }) => {
   const [structureUrl, setStructureUrl] = useState(
-    "https://files.rcsb.org/download/3ACX.pdb",
+    "http://localhost:5173/default.xyz",
   );
-  const [structureFormat, setStructureFormat] = useState("pdb");
+  const [structureFormat, setStructureFormat] = useState("xyz");
   const [ligandId, setLigandId] = useState("LIG");
   const [proteinId, setProteinId] = useState("PROT_001");
   const [apiUrl, setApiUrl] = useState("http://localhost:5000");
@@ -366,6 +400,27 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ plugin }) => {
   const [status, setStatus] = useState<StatusMessage | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const structRef = useRef<Structure | undefined>(undefined);
+
+  const [selectedAtomsA, setSelectedAtomsA] = useState<AtomData[]>([]);
+  const [selectedAtomsB, setSelectedAtomsB] = useState<AtomData[]>([]);
+
+  const handleSetMonomer = (monomer: 'A' | 'B') => {
+    if (!plugin) return;
+    const atoms = extractAtomsFromSelection(plugin);
+    if (atoms.length === 0) {
+      showStatus(`No atoms selected for Monomer ${monomer}`, "error");
+      return;
+    }
+    if (monomer === 'A') {
+      setSelectedAtomsA(atoms);
+      showStatus(`Set Monomer A(${atoms.length} atoms)`, "success");
+    } else {
+      setSelectedAtomsB(atoms);
+      showStatus(`Set Monomer B(${atoms.length} atoms)`, "success");
+    }
+    // Clear selection
+    plugin.managers.structure.selection.clear();
+  };
 
   const showStatus = (message: string, type: StatusMessage["type"]) => {
     setStatus({ message, type });
@@ -384,24 +439,25 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ plugin }) => {
     showStatus("Loading structure...", "info");
     try {
       const isBinary = structureFormat === "bcif";
-      structRef.current = await loadStructure(plugin, structureUrl, {
+      const s = await loadStructure(plugin, structureUrl, {
         format: structureFormat,
         isBinary,
       });
+      console.log("Result in handleLoadStructure:", s);
+      structRef.current = s;
       // Get polymer representation
       showStatus("✅ Structure loaded successfully!", "success");
     } catch (error) {
       showStatus(
-        `❌ Error loading structure: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`,
+        `❌ Error loading structure: ${error instanceof Error ? error.message : "Unknown error"
+        } `,
         "error",
       );
     } finally {
       setIsLoading(false);
     }
   };
-  console.log("Loaded structure:", structRef.current);
+  // console.log("Loaded structure:", structRef.current);
   // if (structRef.current != undefined) {
   //   // console.log("Plugin and structure are ready.");
   //   // logStructureData(plugin);
@@ -414,30 +470,69 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ plugin }) => {
       return;
     }
 
-    if (!ligandId || !proteinId) {
-      showStatus("❌ Please enter both Ligand ID and Protein ID", "error");
+    if (selectedAtomsA.length === 0 || selectedAtomsB.length === 0) {
+      showStatus("❌ Please set both Monomer A and Monomer B", "error");
       return;
     }
 
     setIsLoading(true);
-    showStatus("🔄 Fetching FSAPT data and applying visualization...", "info");
+    showStatus("🔄 Fetching FSAPT data...", "info");
 
     try {
-      // const fsaptData = await visualizeFsaptInteractions(
-      //   plugin,
-      //   ligandId,
-      //   proteinId,
-      //   apiUrl,
-      // );
-      const summary = `✅ FSAPT visualization applied!`;
-      showStatus(summary, "success");
+      // Construct molecule string
+      const formatAtom = (a: AtomData) => `${a.element} ${a.x.toFixed(4)} ${a.y.toFixed(4)} ${a.z.toFixed(4)} `;
+      const fragA = ["0 1", ...selectedAtomsA.map(formatAtom)].join("\n");
+      const fragB = ["0 1", ...selectedAtomsB.map(formatAtom)].join("\n");
+      const moleculeString = `${fragA} \n--\n${fragB} `;
+
+      console.log("Sending molecule string:", moleculeString);
+
+      const response = await fetch(`${apiUrl}/predict-pairwise-energies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ molecule_string: moleculeString })
+      });
+
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+
+      const energies = data.energies.total; // Use total energy for now
+      // energies is [Na][Nb]
+
+      const atomIndices: number[] = [];
+      const energyContributions: number[] = [];
+
+      // Color Monomer B based on interaction with A
+      selectedAtomsB.forEach((atomB, j) => {
+        let energySum = 0;
+        for (let i = 0; i < selectedAtomsA.length; i++) {
+          // Check bounds
+          if (i < energies.length && j < energies[i].length) {
+            energySum += energies[i][j];
+          }
+        }
+        atomIndices.push(atomB.originalIndex);
+        energyContributions.push(energySum);
+      });
+
+      const sourceIndices = selectedAtomsA.map(a => a.originalIndex);
+
+      await applyFsaptColoring(plugin, {
+        atom_indices: atomIndices,
+        energy_contributions: energyContributions,
+        interaction_type: 'total',
+        threshold: threshold,
+        source_indices: sourceIndices
+      });
+
+      showStatus("✅ FSAPT visualization applied!", "success");
     } catch (error) {
       showStatus(
-        `❌ FSAPT visualization failed: ${
-          error instanceof Error ? error.message : "Unknown error"
+        `❌ FSAPT visualization failed: ${error instanceof Error ? error.message : "Unknown error"
         }`,
         "error",
       );
+      console.error(error);
     } finally {
       setIsLoading(false);
     }
@@ -458,8 +553,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ plugin }) => {
       }
     } catch (error) {
       showStatus(
-        `❌ Cannot connect to API: ${
-          error instanceof Error ? error.message : "Unknown error"
+        `❌ Cannot connect to API: ${error instanceof Error ? error.message : "Unknown error"
         }`,
         "error",
       );
@@ -478,8 +572,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ plugin }) => {
       }
     } catch (error) {
       showStatus(
-        `❌ Error fetching pairs: ${
-          error instanceof Error ? error.message : "Unknown error"
+        `❌ Error fetching pairs: ${error instanceof Error ? error.message : "Unknown error"
         }`,
         "error",
       );
@@ -501,10 +594,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ plugin }) => {
       if (data.success) {
         const s = data.summary;
         const summary =
-          `📊 Summary: ${s.total_interactions} interactions, ${s.attractive_interactions} attractive, ${s.repulsive_interactions} repulsive. Total: ${
-            s.total_energy.toFixed(
-              2,
-            )
+          `📊 Summary: ${s.total_interactions} interactions, ${s.attractive_interactions} attractive, ${s.repulsive_interactions} repulsive. Total: ${s.total_energy.toFixed(
+            2,
+          )
           } kcal/mol`;
         showStatus(summary, "success");
       } else {
@@ -512,8 +604,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ plugin }) => {
       }
     } catch (error) {
       showStatus(
-        `❌ Error fetching summary: ${
-          error instanceof Error ? error.message : "Unknown error"
+        `❌ Error fetching summary: ${error instanceof Error ? error.message : "Unknown error"
         }`,
         "error",
       );
@@ -575,24 +666,16 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ plugin }) => {
       {/* FSAPT Visualization */}
       <div style={controlGroupStyle}>
         <h3 style={headerStyle}>⚡ FSAPT Visualization</h3>
-        <label style={labelStyle}>Ligand ID:</label>
-        <input
-          style={inputStyle}
-          type="text"
-          value={ligandId}
-          onChange={(e) => setLigandId(e.target.value)}
-          placeholder="e.g., LIG, ATP, GDP"
-          disabled={isLoading}
-        />
-        <label style={labelStyle}>Protein ID:</label>
-        <input
-          style={inputStyle}
-          type="text"
-          value={proteinId}
-          onChange={(e) => setProteinId(e.target.value)}
-          placeholder="e.g., PROT_001, ENZYME"
-          disabled={isLoading}
-        />
+
+        <div style={{ marginBottom: '10px' }}>
+          <button style={{ ...buttonStyle, backgroundColor: selectedAtomsA.length ? '#d4edda' : '#f8f9fa' }} onClick={() => handleSetMonomer('A')}>
+            Set Monomer A (Source) {selectedAtomsA.length > 0 && `(${selectedAtomsA.length})`}
+          </button>
+          <button style={{ ...buttonStyle, backgroundColor: selectedAtomsB.length ? '#d4edda' : '#f8f9fa' }} onClick={() => handleSetMonomer('B')}>
+            Set Monomer B (Target) {selectedAtomsB.length > 0 && `(${selectedAtomsB.length})`}
+          </button>
+        </div>
+
         <label style={labelStyle}>API URL:</label>
         <input
           style={inputStyle}
@@ -620,13 +703,17 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ plugin }) => {
           {isLoading ? "Applying..." : "Apply FSAPT Coloring"}
         </button>
         <div style={sampleDataStyle}>
-          <strong>Sample pairs available:</strong>
+          <strong>Instructions:</strong>
           <br />
-          • LIG + PROT_001
+          1. Select atoms in viewer (Shift+Click/Drag)
           <br />
-          • LIG + PROT_002
+          2. Click "Set Monomer A"
           <br />
-          <em>Or try any IDs for mock data</em>
+          3. Select other atoms
+          <br />
+          4. Click "Set Monomer B"
+          <br />
+          5. Click "Apply FSAPT Coloring"
         </div>
       </div>
 
@@ -711,31 +798,33 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ plugin }) => {
       </div>
 
       {/* Status */}
-      {status && (
-        <div
-          style={{
-            ...statusStyle,
-            backgroundColor: status.type === "success"
-              ? "#d4edda"
-              : status.type === "error"
-              ? "#f8d7da"
-              : "#d1ecf1",
-            color: status.type === "success"
-              ? "#155724"
-              : status.type === "error"
-              ? "#721c24"
-              : "#0c5460",
-            borderColor: status.type === "success"
-              ? "#c3e6cb"
-              : status.type === "error"
-              ? "#f5c6cb"
-              : "#bee5eb",
-          }}
-        >
-          {status.message}
-        </div>
-      )}
-    </div>
+      {
+        status && (
+          <div
+            style={{
+              ...statusStyle,
+              backgroundColor: status.type === "success"
+                ? "#d4edda"
+                : status.type === "error"
+                  ? "#f8d7da"
+                  : "#d1ecf1",
+              color: status.type === "success"
+                ? "#155724"
+                : status.type === "error"
+                  ? "#721c24"
+                  : "#0c5460",
+              borderColor: status.type === "success"
+                ? "#c3e6cb"
+                : status.type === "error"
+                  ? "#f5c6cb"
+                  : "#bee5eb",
+            }}
+          >
+            {status.message}
+          </div>
+        )
+      }
+    </div >
   );
 };
 
@@ -772,10 +861,12 @@ const FsaptVisualizationApp: React.FC = () => {
           CustomPerAtomColorThemeProvider,
         );
         // Load default structure
-        await loadStructure(newPlugin, "https://models.rcsb.org/4hhb.bcif", {
-          isBinary: true,
+        const s = await loadStructure(newPlugin, "http://localhost:5173/default.xyz", {
+          isBinary: false,
+          format: 'xyz'
         });
-        setInitStatus("Ready");
+
+        setInitStatus("loaded");
       } catch (error) {
         console.error("Failed to initialize plugin:", error);
         setInitStatus("Failed to initialize");
