@@ -1,14 +1,10 @@
-import React from "react";
-import "./App.css";
-import FsaptVisualizationApp from "./molstar_vis.tsx";
+import './App.css'
+import VisualizationContainer from './components/VisualizationContainer'
 
 function App() {
   return (
-    <div>
-      <h1>FSAPT Visualization</h1>
-      <FsaptVisualizationApp/>
-    </div>
-  );
+    <VisualizationContainer />
+  )
 }
 
-export default App;
+export default App
