@@ -9,6 +9,28 @@
   </head>
   <body>
     <main class="app-shell">
+      <section class="panel viewer-panel">
+        <div class="viewer-head">
+          <h2>Molecular View</h2>
+          <div class="heatmap-controls">
+            <label for="heatmapMetric">Heatmap metric</label>
+            <select id="heatmapMetric">
+              <option value="ml_Total">ML Total</option>
+              <option value="psi4_Total">Psi4 Total</option>
+              <option value="err_Total">Error Total</option>
+              <option value="Total">Total (ML-only)</option>
+            </select>
+            <button id="applyHeatmapBtn" type="button">Apply Heatmap</button>
+          </div>
+        </div>
+        <div id="viewer"></div>
+        <div class="legend-wrap">
+          <span class="legend-label">Blue: stabilizing / lower</span>
+          <div class="legend-bar" aria-hidden="true"></div>
+          <span class="legend-label">Red: destabilizing / higher</span>
+        </div>
+      </section>
+
       <section class="panel controls">
         <h1>FSAPT Prototype</h1>
         <p class="subtitle">
@@ -37,10 +59,6 @@
         </div>
 
         <p id="status" class="status">Ready.</p>
-      </section>
-
-      <section class="panel viewer-panel">
-        <div id="viewer"></div>
       </section>
 
       <section class="panel results">

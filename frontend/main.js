@@ -3,11 +3,13 @@ const moleculeInput = document.getElementById("moleculeInput");
 const fragAInput = document.getElementById("fragAInput");
 const fragBInput = document.getElementById("fragBInput");
 const tableBody = document.querySelector("#resultsTable tbody");
+const heatmapMetricEl = document.getElementById("heatmapMetric");
 
 const viewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
 
 let parsedMolecule = null;
 let latestComparisonRows = [];
+let latestHeatmapMetric = "ml_Total";
 
 function setStatus(message, kind = "") {
   statusEl.textContent = message;
@@ -80,8 +82,106 @@ function drawMolecule(parsed) {
   const monomerA = parsed.monomer_a_indices.map((idx) => idx - 1);
   const monomerB = parsed.monomer_b_indices.map((idx) => idx - 1);
 
-  viewer.setStyle({ serial: monomerA }, { stick: { colorscheme: "greenCarbon" } });
-  viewer.addStyle({ serial: monomerB }, { stick: { colorscheme: "cyanCarbon" } });
+  viewer.setStyle(
+    { serial: monomerA },
+    { stick: { colorscheme: "greenCarbon", radius: 0.19 }, sphere: { radius: 0.28 } }
+  );
+  viewer.addStyle(
+    { serial: monomerB },
+    { stick: { colorscheme: "cyanCarbon", radius: 0.19 }, sphere: { radius: 0.28 } }
+  );
+  viewer.zoomTo();
+  viewer.render();
+}
+
+function colorFromBlueWhiteRed(value, maxAbs) {
+  if (!maxAbs || maxAbs < 1e-8) {
+    return "#dfe6f5";
+  }
+
+  const t = Math.max(-1, Math.min(1, value / maxAbs));
+  const neg = [47, 87, 184];
+  const mid = [224, 230, 245];
+  const pos = [201, 71, 56];
+
+  const blend = (a, b, x) => Math.round(a + (b - a) * x);
+
+  let r;
+  let g;
+  let b;
+  if (t < 0) {
+    const x = t + 1;
+    r = blend(neg[0], mid[0], x);
+    g = blend(neg[1], mid[1], x);
+    b = blend(neg[2], mid[2], x);
+  } else {
+    r = blend(mid[0], pos[0], t);
+    g = blend(mid[1], pos[1], t);
+    b = blend(mid[2], pos[2], t);
+  }
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function valueForMetric(row, metricKey) {
+  if (typeof row[metricKey] === "number") {
+    return row[metricKey];
+  }
+
+  if (metricKey === "ml_Total") {
+    return typeof row.Total === "number" ? row.Total : 0;
+  }
+
+  if (metricKey === "Total") {
+    return typeof row.Total === "number" ? row.Total : 0;
+  }
+
+  return 0;
+}
+
+function aggregateFragmentContributions(rows, metricKey) {
+  const byFragment = new Map();
+
+  const add = (name, indices, value) => {
+    if (!name || name === "All" || !indices || indices.length === 0) {
+      return;
+    }
+    if (!byFragment.has(name)) {
+      byFragment.set(name, { name, indices: [...indices], value: 0 });
+    }
+    byFragment.get(name).value += value;
+  };
+
+  for (const row of rows) {
+    const energy = valueForMetric(row, metricKey);
+    add(row.Frag1, row.Frag1_indices, energy);
+    add(row.Frag2, row.Frag2_indices, energy);
+  }
+
+  return Array.from(byFragment.values());
+}
+
+function applyHeatmapToStructure(metricKey = latestHeatmapMetric) {
+  if (!parsedMolecule || latestComparisonRows.length === 0) {
+    return;
+  }
+
+  latestHeatmapMetric = metricKey;
+  const groups = aggregateFragmentContributions(latestComparisonRows, metricKey);
+  const maxAbs = groups.reduce((acc, group) => Math.max(acc, Math.abs(group.value)), 0);
+
+  viewer.clear();
+  viewer.addModel(parsedMolecule.xyz, "xyz");
+  viewer.setStyle({}, { stick: { color: "#d6dccf", radius: 0.16, opacity: 0.35 } });
+
+  for (const group of groups) {
+    const color = colorFromBlueWhiteRed(group.value, maxAbs);
+    const serials = group.indices.map((idx) => idx - 1);
+    viewer.addStyle(
+      { serial: serials },
+      { stick: { color, radius: 0.23 }, sphere: { color, radius: 0.34 } }
+    );
+  }
+
   viewer.zoomTo();
   viewer.render();
 }
@@ -91,25 +191,28 @@ function highlightPair(row) {
     return;
   }
 
-  viewer.clear();
-  viewer.addModel(parsedMolecule.xyz, "xyz");
-
-  const allA = parsedMolecule.monomer_a_indices.map((i) => i - 1);
-  const allB = parsedMolecule.monomer_b_indices.map((i) => i - 1);
-
-  viewer.setStyle({ serial: allA }, { stick: { colorscheme: "greenCarbon", opacity: 0.3 } });
-  viewer.addStyle({ serial: allB }, { stick: { colorscheme: "cyanCarbon", opacity: 0.3 } });
+  if (latestComparisonRows.length > 0) {
+    applyHeatmapToStructure(latestHeatmapMetric);
+  } else {
+    drawMolecule(parsedMolecule);
+  }
 
   const pairA = (row.Frag1_indices || []).map((i) => i - 1);
   const pairB = (row.Frag2_indices || []).map((i) => i - 1);
 
   viewer.addStyle(
     { serial: pairA },
-    { stick: { radius: 0.23, color: "#9f3f20" }, sphere: { radius: 0.36, color: "#9f3f20" } }
+    {
+      stick: { radius: 0.29, color: "#9f3f20" },
+      sphere: { radius: 0.4, color: "#9f3f20" },
+    }
   );
   viewer.addStyle(
     { serial: pairB },
-    { stick: { radius: 0.23, color: "#2f3f8f" }, sphere: { radius: 0.36, color: "#2f3f8f" } }
+    {
+      stick: { radius: 0.29, color: "#2f3f8f" },
+      sphere: { radius: 0.4, color: "#2f3f8f" },
+    }
   );
 
   viewer.zoomTo({ serial: [...pairA, ...pairB] });
@@ -149,6 +252,8 @@ function renderTable(rows) {
     });
     tableBody.appendChild(tr);
   }
+
+  applyHeatmapToStructure(heatmapMetricEl.value || latestHeatmapMetric);
 }
 
 async function loadExample() {
@@ -165,6 +270,7 @@ async function runParse() {
   setStatus("Parsing molecule...");
   const payload = { molecule: moleculeInput.value };
   const data = await callJson("/api/parse-molecule", "POST", payload);
+  latestComparisonRows = [];
   drawMolecule(data);
   setStatus("Molecule parsed.", "ok");
 }
@@ -224,6 +330,27 @@ document.getElementById("runCompareBtn").addEventListener("click", async () => {
     await runCompare();
   } catch (err) {
     setStatus(err.message, "error");
+  }
+});
+
+document.getElementById("applyHeatmapBtn").addEventListener("click", () => {
+  latestHeatmapMetric = heatmapMetricEl.value;
+  applyHeatmapToStructure(latestHeatmapMetric);
+});
+
+heatmapMetricEl.addEventListener("change", () => {
+  latestHeatmapMetric = heatmapMetricEl.value;
+  applyHeatmapToStructure(latestHeatmapMetric);
+});
+
+window.addEventListener("resize", () => {
+  viewer.resize();
+  if (parsedMolecule) {
+    if (latestComparisonRows.length > 0) {
+      applyHeatmapToStructure(latestHeatmapMetric);
+    } else {
+      drawMolecule(parsedMolecule);
+    }
   }
 });
 
