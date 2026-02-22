@@ -1,2 +1,2 @@
 # fsapt_visualization
-Uses Molstar to visualize FSAPT results in the browser
+Uses 3DMol.js to visualize FSAPT results in the browser
