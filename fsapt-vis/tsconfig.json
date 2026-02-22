@@ -1,40 +1,7 @@
 {
-  "compileOnSave": true,
-  "compilerOptions": {
-    // "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "importsNotUsedAsValues": "remove",
-    "removeComments": true,
-    "allowJs": true,
-    "checkJs": false,
-    // "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
-
-    /* Linting */
-    // "noUnusedLocals": true,
-    // "noUnusedParameters": true,
-    // "erasableSyntaxOnly": true,
-    // "noFallthroughCasesInSwitch": true,
-    // "noUncheckedSideEffectImports": true,
-    // "isolatedModules": false,
-    // "verbatimModuleSyntax": false,
-    "composite": true,
-    "target": "ESNext",
-    "module": "ESNext",
-    // "strict": true,
-    // "jsx": "preserve",
-    // "moduleResolution": "node",
-    // "resolveJsonModule": true,
-    // "experimentalDecorators": true,
-    // "skipLibCheck": true,
-    // "esModuleInterop": true,
-    // "allowSyntheticDefaultImports": true,
-    // "forceConsistentCasingInFileNames": true,
-    // "useDefineForClassFields": true,
-    // "noImplicitThis": false,
-    "sourceMap": true
-  },
-  "include": ["src", "vite.config.mts"],
-  "exclude": ["node_modules"]
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
 }

@@ -18,7 +18,7 @@
 ## Code Style Guidelines
 
 ### TypeScript/React
-- **Imports**: React first, then Molstar, then local imports
+- **Imports**: React first, then package, then local imports
 - **Formatting**: 2-space indentation, lines <100 chars
 - **Types**: Define interfaces for props and data structures
 - **Naming**: camelCase variables/functions, PascalCase components

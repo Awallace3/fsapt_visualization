@@ -1,5 +1,5 @@
 import './App.css'
-import VisualizationContainer from './components/VisualizationContainer'
+import VisualizationContainer from './components/VisualizationContainer.tsx'
 
 function App() {
   return (
