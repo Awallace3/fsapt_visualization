@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FSAPT Visualizer</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="panel controls">
+        <h1>FSAPT Prototype</h1>
+        <p class="subtitle">
+          Visualize fragment-pair energies and ML vs Psi4 errors using 3Dmol.js.
+        </p>
+
+        <div class="button-row">
+          <button id="loadExampleBtn" type="button">Load AP3 Example</button>
+          <button id="parseBtn" type="button">Parse Molecule</button>
+          <button id="runMlBtn" type="button">Run ML</button>
+          <button id="runCompareBtn" type="button">Run ML + Psi4 Compare</button>
+        </div>
+
+        <label for="moleculeInput">QCE Molecule String</label>
+        <textarea id="moleculeInput" rows="16"></textarea>
+
+        <div class="fragment-grid">
+          <div>
+            <label for="fragAInput">Fragments A (one per line: Name: indices)</label>
+            <textarea id="fragAInput" rows="7"></textarea>
+          </div>
+          <div>
+            <label for="fragBInput">Fragments B (one per line: Name: indices)</label>
+            <textarea id="fragBInput" rows="7"></textarea>
+          </div>
+        </div>
+
+        <p id="status" class="status">Ready.</p>
+      </section>
+
+      <section class="panel viewer-panel">
+        <div id="viewer"></div>
+      </section>
+
+      <section class="panel results">
+        <h2>Error Table</h2>
+        <p class="hint">Click a row to highlight its fragment pair in the viewer.</p>
+        <div class="table-wrap">
+          <table id="resultsTable">
+            <thead>
+              <tr>
+                <th>Frag1</th>
+                <th>Frag2</th>
+                <th>ML Total</th>
+                <th>Psi4 Total</th>
+                <th>Error Total</th>
+                <th>|Error| Total</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>
