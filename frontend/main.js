@@ -13,6 +13,8 @@ const viewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
 let parsedMolecule = null;
 let latestComparisonRows = [];
 let latestHeatmapMetric = "ml_Total";
+let latestRangeMin = null;
+let latestRangeMax = null;
 
 function setStatus(message, kind = "") {
   statusEl.textContent = message;
@@ -98,11 +100,23 @@ function drawMolecule(parsed) {
 }
 
 function updateRangeLabel(minValue = null, maxValue = null) {
+  latestRangeMin = minValue;
+  latestRangeMax = maxValue;
   if (minValue === null || maxValue === null) {
     heatmapRangeEl.textContent = "Range: n/a";
     return;
   }
   heatmapRangeEl.textContent = `Range: ${minValue.toFixed(4)} to ${maxValue.toFixed(4)} kcal/mol`;
+}
+
+function metricLabel(metricKey) {
+  const names = {
+    ml_Total: "ML Total",
+    psi4_Total: "Psi4 Total",
+    err_Total: "Error Total",
+    Total: "Total (ML-only)",
+  };
+  return names[metricKey] || metricKey;
 }
 
 function colorFromBlueWhiteRed(value, maxAbs) {
@@ -246,15 +260,40 @@ function applyHeatmapToStructure(metricKey = latestHeatmapMetric) {
   const maxAbs = Math.max(Math.abs(minValue), Math.abs(maxValue));
   updateRangeLabel(minValue, maxValue);
 
+  const focusedMonomerSerials =
+    side === "A"
+      ? parsedMolecule.monomer_a_indices.map((idx) => idx - 1)
+      : parsedMolecule.monomer_b_indices.map((idx) => idx - 1);
+  const oppositeMonomerSerials =
+    side === "A"
+      ? parsedMolecule.monomer_b_indices.map((idx) => idx - 1)
+      : parsedMolecule.monomer_a_indices.map((idx) => idx - 1);
+
   viewer.clear();
   viewer.addModel(parsedMolecule.xyz, "xyz");
-  viewer.setStyle({}, { stick: { color: "#d6dccf", radius: 0.16, opacity: 0.35 } });
+  viewer.setStyle(
+    { serial: focusedMonomerSerials },
+    {
+      stick: { colorscheme: "Jmol", radius: 0.2, opacity: 0.95 },
+      sphere: { colorscheme: "Jmol", radius: 0.28, opacity: 0.95 },
+    }
+  );
+  viewer.addStyle(
+    { serial: oppositeMonomerSerials },
+    {
+      stick: { color: "#d6dccf", radius: 0.16, opacity: 0.2 },
+      sphere: { color: "#d6dccf", radius: 0.22, opacity: 0.2 },
+    }
+  );
 
   if (heatmapData.focusIndices.length > 0) {
     const focusSerials = heatmapData.focusIndices.map((idx) => idx - 1);
     viewer.addStyle(
       { serial: focusSerials },
-      { stick: { color: "#8f7a2d", radius: 0.26 }, sphere: { color: "#8f7a2d", radius: 0.35 } }
+      {
+        stick: { colorscheme: "Jmol", radius: 0.26, opacity: 1.0 },
+        sphere: { colorscheme: "Jmol", radius: 0.34, opacity: 1.0 },
+      }
     );
   }
 
@@ -269,6 +308,84 @@ function applyHeatmapToStructure(metricKey = latestHeatmapMetric) {
 
   viewer.zoomTo();
   viewer.render();
+}
+
+function loadImageFromUri(uri) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Unable to load image from canvas."));
+    img.src = uri;
+  });
+}
+
+async function saveCurrentViewPng() {
+  try {
+    if (latestComparisonRows.length > 0) {
+      applyHeatmapToStructure(latestHeatmapMetric);
+    }
+
+    const uri = viewer.pngURI();
+    const baseImage = await loadImageFromUri(uri);
+    const width = baseImage.width;
+    const legendHeight = 110;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = baseImage.height + legendHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("Canvas context unavailable");
+    }
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(baseImage, 0, 0);
+
+    const legendY = baseImage.height + 16;
+    const leftPad = 28;
+    const rightPad = 28;
+    const barX = leftPad;
+    const barY = legendY + 28;
+    const barWidth = width - leftPad - rightPad;
+    const barHeight = 18;
+
+    ctx.fillStyle = "#1d2a2e";
+    ctx.font = "600 20px IBM Plex Sans, Segoe UI, sans-serif";
+    const metricText = metricLabel(latestHeatmapMetric);
+    const focusText = `Focus ${focusMonomerEl.value}: ${focusFragmentEl.value || "n/a"}`;
+    ctx.fillText(`${metricText} heatmap`, leftPad, legendY);
+    ctx.font = "500 16px IBM Plex Sans, Segoe UI, sans-serif";
+    ctx.fillText(focusText, width - rightPad - ctx.measureText(focusText).width, legendY);
+
+    const gradient = ctx.createLinearGradient(barX, 0, barX + barWidth, 0);
+    gradient.addColorStop(0, "#2f57b8");
+    gradient.addColorStop(0.5, "#dfe6f5");
+    gradient.addColorStop(1, "#c94738");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+    ctx.strokeStyle = "#b8c0c6";
+    ctx.strokeRect(barX, barY, barWidth, barHeight);
+
+    ctx.fillStyle = "#1d2a2e";
+    ctx.font = "500 14px IBM Plex Sans, Segoe UI, sans-serif";
+    if (latestRangeMin !== null && latestRangeMax !== null) {
+      ctx.fillText(`${latestRangeMin.toFixed(4)} kcal/mol`, barX, barY + 38);
+      const maxLabel = `${latestRangeMax.toFixed(4)} kcal/mol`;
+      ctx.fillText(maxLabel, barX + barWidth - ctx.measureText(maxLabel).width, barY + 38);
+    } else {
+      ctx.fillText("Range: n/a", barX, barY + 38);
+    }
+
+    const finalUri = canvas.toDataURL("image/png");
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const anchor = document.createElement("a");
+    anchor.href = finalUri;
+    anchor.download = `fsapt_heatmap_${stamp}.png`;
+    anchor.click();
+    setStatus("Saved molecular view PNG with heatmap legend.", "ok");
+  } catch (err) {
+    setStatus(`Could not save PNG: ${err.message}`, "error");
+  }
 }
 
 function highlightPair(row) {
@@ -424,6 +541,10 @@ document.getElementById("runCompareBtn").addEventListener("click", async () => {
 document.getElementById("applyHeatmapBtn").addEventListener("click", () => {
   latestHeatmapMetric = heatmapMetricEl.value;
   applyHeatmapToStructure(latestHeatmapMetric);
+});
+
+document.getElementById("savePngBtn").addEventListener("click", () => {
+  saveCurrentViewPng();
 });
 
 focusMonomerEl.addEventListener("change", () => {
