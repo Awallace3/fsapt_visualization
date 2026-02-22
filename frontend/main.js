@@ -4,6 +4,9 @@ const fragAInput = document.getElementById("fragAInput");
 const fragBInput = document.getElementById("fragBInput");
 const tableBody = document.querySelector("#resultsTable tbody");
 const heatmapMetricEl = document.getElementById("heatmapMetric");
+const focusMonomerEl = document.getElementById("focusMonomer");
+const focusFragmentEl = document.getElementById("focusFragment");
+const heatmapRangeEl = document.getElementById("heatmapRange");
 
 const viewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
 
@@ -94,6 +97,14 @@ function drawMolecule(parsed) {
   viewer.render();
 }
 
+function updateRangeLabel(minValue = null, maxValue = null) {
+  if (minValue === null || maxValue === null) {
+    heatmapRangeEl.textContent = "Range: n/a";
+    return;
+  }
+  heatmapRangeEl.textContent = `Range: ${minValue.toFixed(4)} to ${maxValue.toFixed(4)} kcal/mol`;
+}
+
 function colorFromBlueWhiteRed(value, maxAbs) {
   if (!maxAbs || maxAbs < 1e-8) {
     return "#dfe6f5";
@@ -138,40 +149,114 @@ function valueForMetric(row, metricKey) {
   return 0;
 }
 
-function aggregateFragmentContributions(rows, metricKey) {
-  const byFragment = new Map();
+function uniqueSortedNames(rows, key) {
+  return [...new Set(rows.map((row) => row[key]).filter((name) => name && name !== "All"))].sort();
+}
 
-  const add = (name, indices, value) => {
-    if (!name || name === "All" || !indices || indices.length === 0) {
-      return;
-    }
-    if (!byFragment.has(name)) {
-      byFragment.set(name, { name, indices: [...indices], value: 0 });
-    }
-    byFragment.get(name).value += value;
-  };
+function populateFocusFragmentOptions() {
+  const side = focusMonomerEl.value;
+  const sourceKey = side === "A" ? "Frag1" : "Frag2";
+  const names = uniqueSortedNames(latestComparisonRows, sourceKey);
 
-  for (const row of rows) {
-    const energy = valueForMetric(row, metricKey);
-    add(row.Frag1, row.Frag1_indices, energy);
-    add(row.Frag2, row.Frag2_indices, energy);
+  const previousValue = focusFragmentEl.value;
+  focusFragmentEl.innerHTML = "";
+
+  for (const name of names) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    focusFragmentEl.appendChild(opt);
   }
 
-  return Array.from(byFragment.values());
+  if (names.length === 0) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "No fragments";
+    focusFragmentEl.appendChild(opt);
+    focusFragmentEl.value = "";
+    return;
+  }
+
+  if (names.includes(previousValue)) {
+    focusFragmentEl.value = previousValue;
+  } else {
+    focusFragmentEl.value = names[0];
+  }
+}
+
+function focusedContributions(rows, metricKey, side, focusedFragment) {
+  const out = new Map();
+  const sourceKey = side === "A" ? "Frag1" : "Frag2";
+  const targetKey = side === "A" ? "Frag2" : "Frag1";
+  const sourceIndicesKey = side === "A" ? "Frag1_indices" : "Frag2_indices";
+  const targetIndicesKey = side === "A" ? "Frag2_indices" : "Frag1_indices";
+  let focusIndices = [];
+
+  for (const row of rows) {
+    if (row[sourceKey] !== focusedFragment || row[targetKey] === "All") {
+      continue;
+    }
+    if (row[sourceIndicesKey] && row[sourceIndicesKey].length > 0) {
+      focusIndices = row[sourceIndicesKey];
+    }
+
+    const name = row[targetKey];
+    if (!out.has(name)) {
+      out.set(name, {
+        name,
+        indices: row[targetIndicesKey] || [],
+        value: 0,
+      });
+    }
+    out.get(name).value += valueForMetric(row, metricKey);
+  }
+
+  return {
+    targets: Array.from(out.values()),
+    focusIndices,
+  };
 }
 
 function applyHeatmapToStructure(metricKey = latestHeatmapMetric) {
   if (!parsedMolecule || latestComparisonRows.length === 0) {
+    updateRangeLabel();
+    return;
+  }
+
+  const side = focusMonomerEl.value;
+  const focusedFragment = focusFragmentEl.value;
+  if (!focusedFragment) {
+    updateRangeLabel();
     return;
   }
 
   latestHeatmapMetric = metricKey;
-  const groups = aggregateFragmentContributions(latestComparisonRows, metricKey);
-  const maxAbs = groups.reduce((acc, group) => Math.max(acc, Math.abs(group.value)), 0);
+  const heatmapData = focusedContributions(latestComparisonRows, metricKey, side, focusedFragment);
+  const groups = heatmapData.targets;
+
+  if (groups.length === 0) {
+    drawMolecule(parsedMolecule);
+    updateRangeLabel();
+    return;
+  }
+
+  const values = groups.map((group) => group.value);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const maxAbs = Math.max(Math.abs(minValue), Math.abs(maxValue));
+  updateRangeLabel(minValue, maxValue);
 
   viewer.clear();
   viewer.addModel(parsedMolecule.xyz, "xyz");
   viewer.setStyle({}, { stick: { color: "#d6dccf", radius: 0.16, opacity: 0.35 } });
+
+  if (heatmapData.focusIndices.length > 0) {
+    const focusSerials = heatmapData.focusIndices.map((idx) => idx - 1);
+    viewer.addStyle(
+      { serial: focusSerials },
+      { stick: { color: "#8f7a2d", radius: 0.26 }, sphere: { color: "#8f7a2d", radius: 0.35 } }
+    );
+  }
 
   for (const group of groups) {
     const color = colorFromBlueWhiteRed(group.value, maxAbs);
@@ -230,6 +315,7 @@ function errorShade(absErr) {
 
 function renderTable(rows) {
   latestComparisonRows = rows;
+  populateFocusFragmentOptions();
   tableBody.innerHTML = "";
 
   for (const row of rows) {
@@ -271,7 +357,9 @@ async function runParse() {
   const payload = { molecule: moleculeInput.value };
   const data = await callJson("/api/parse-molecule", "POST", payload);
   latestComparisonRows = [];
+  populateFocusFragmentOptions();
   drawMolecule(data);
+  updateRangeLabel();
   setStatus("Molecule parsed.", "ok");
 }
 
@@ -335,6 +423,15 @@ document.getElementById("runCompareBtn").addEventListener("click", async () => {
 
 document.getElementById("applyHeatmapBtn").addEventListener("click", () => {
   latestHeatmapMetric = heatmapMetricEl.value;
+  applyHeatmapToStructure(latestHeatmapMetric);
+});
+
+focusMonomerEl.addEventListener("change", () => {
+  populateFocusFragmentOptions();
+  applyHeatmapToStructure(latestHeatmapMetric);
+});
+
+focusFragmentEl.addEventListener("change", () => {
   applyHeatmapToStructure(latestHeatmapMetric);
 });
 

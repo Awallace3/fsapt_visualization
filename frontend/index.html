@@ -20,6 +20,13 @@
               <option value="err_Total">Error Total</option>
               <option value="Total">Total (ML-only)</option>
             </select>
+            <label for="focusMonomer">Focus monomer</label>
+            <select id="focusMonomer">
+              <option value="A">Monomer A fragment</option>
+              <option value="B">Monomer B fragment</option>
+            </select>
+            <label for="focusFragment">Focus fragment</label>
+            <select id="focusFragment"></select>
             <button id="applyHeatmapBtn" type="button">Apply Heatmap</button>
           </div>
         </div>
@@ -28,6 +35,7 @@
           <span class="legend-label">Blue: stabilizing / lower</span>
           <div class="legend-bar" aria-hidden="true"></div>
           <span class="legend-label">Red: destabilizing / higher</span>
+          <span id="heatmapRange" class="legend-range">Range: n/a</span>
         </div>
       </section>
 

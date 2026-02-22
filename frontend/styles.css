@@ -99,6 +99,7 @@ textarea {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .heatmap-controls label {
@@ -170,6 +171,13 @@ button:hover {
   font-size: 0.86rem;
 }
 
+.legend-range {
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 600;
+  margin-left: auto;
+}
+
 .legend-bar {
   flex: 1;
   min-width: 220px;
@@ -230,5 +238,9 @@ tbody tr.active {
   .heatmap-controls,
   .legend-wrap {
     flex-wrap: wrap;
+  }
+
+  .legend-range {
+    margin-left: 0;
   }
 }
