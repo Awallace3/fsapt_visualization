@@ -45,6 +45,7 @@ http://localhost:5000
 - `POST /api/predict/ml-fsapt`
 - `POST /api/predict/psi4-fsapt`
 - `POST /api/upload/psi4-fsapt-zip`
+- `POST /api/upload/psi4-fsapt-zip/validate`
 - `POST /api/compare`
 
 ## Notes

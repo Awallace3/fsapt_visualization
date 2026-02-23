@@ -16,6 +16,7 @@ const colExchEl = document.getElementById("colExch");
 const colIndEl = document.getElementById("colInd");
 const colDispEl = document.getElementById("colDisp");
 const uploadFsaptInput = document.getElementById("uploadFsaptInput");
+const resetHeatmapRangeBtn = document.getElementById("resetHeatmapRangeBtn");
 
 const viewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
 
@@ -97,9 +98,14 @@ async function uploadZip(url, file) {
 
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || `Upload failed: ${res.status}`);
+    const details = Array.isArray(data.details) ? ` (${data.details.join("; ")})` : "";
+    throw new Error((data.error || `Upload failed: ${res.status}`) + details);
   }
   return data;
+}
+
+async function validateFsaptZip(file) {
+  return uploadZip("/api/upload/psi4-fsapt-zip/validate", file);
 }
 
 function drawMolecule(parsed) {
@@ -667,12 +673,37 @@ async function runCompare() {
 }
 
 async function runUploadFsapt(file) {
-  setStatus("Uploading and processing FSAPT zip...");
+  setStatus("Validating uploaded FSAPT zip...");
+  const validation = await validateFsaptZip(file);
+  if (!validation.ok) {
+    const missing = (validation.missing_files || []).join(", ");
+    const invalid = (validation.invalid_files || []).join(", ");
+    throw new Error(
+      `FSAPT zip validation failed. Missing: ${missing || "none"}. Invalid: ${invalid || "none"}.`
+    );
+  }
+
+  setStatus("Validation passed. Processing FSAPT data...");
   const data = await uploadZip("/api/upload/psi4-fsapt-zip", file);
   drawMolecule(data.parsed);
   tableSource = "psi4";
   renderTable(data.rows);
   setStatus("Uploaded FSAPT data processed. Showing Psi4 fragment energies.", "ok");
+}
+
+function resetCurrentHeatmapRange() {
+  const defaults = latestDefaultBoundsByComponent[latestHeatmapComponent];
+  if (!defaults) {
+    setStatus("No heatmap defaults available yet. Apply or run analysis first.", "error");
+    return;
+  }
+
+  setBoundaryInputs(defaults.min, defaults.max);
+  if (latestComparisonRows.length > 0) {
+    renderTable(latestComparisonRows);
+  } else {
+    applyHeatmapToStructure(latestHeatmapComponent, { resetBounds: true });
+  }
 }
 
 document.getElementById("loadExampleBtn").addEventListener("click", async () => {
@@ -732,6 +763,10 @@ document.getElementById("applyHeatmapBtn").addEventListener("click", () => {
   } else {
     applyHeatmapToStructure(latestHeatmapComponent);
   }
+});
+
+resetHeatmapRangeBtn.addEventListener("click", () => {
+  resetCurrentHeatmapRange();
 });
 
 document.getElementById("savePngBtn").addEventListener("click", () => {

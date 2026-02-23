@@ -4,7 +4,7 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Dict, List, cast
+from typing import Dict, List, Tuple, cast
 
 
 REQUIRED_FSAPT_FILES = {
@@ -38,11 +38,8 @@ def _flatten_single_root_dir(output_dir: Path) -> Path:
     return output_dir
 
 
-def _ensure_required_files(data_dir: Path) -> None:
-    found = {path.name for path in data_dir.iterdir() if path.is_file()}
-    missing = sorted(REQUIRED_FSAPT_FILES - found)
-    if missing:
-        raise ValueError(f"Missing required FSAPT files in zip: {missing}")
+def _list_files(data_dir: Path) -> List[str]:
+    return sorted(path.name for path in data_dir.iterdir() if path.is_file())
 
 
 def _normalize_fragment_files(data_dir: Path) -> None:
@@ -142,18 +139,137 @@ def _rows_from_fsapt_data(data: Dict[str, List]) -> List[Dict]:
     return rows
 
 
-def process_uploaded_fsapt_zip(zip_bytes: bytes) -> Dict:
+def _extract_zip_payload(zip_bytes: bytes) -> Tuple[Path, Path]:
     temp_root = Path(tempfile.mkdtemp(prefix="fsapt_upload_"))
     zip_path = temp_root / "upload.zip"
     data_dir = temp_root / "unzipped"
     data_dir.mkdir(parents=True, exist_ok=True)
+    zip_path.write_bytes(zip_bytes)
+    _safe_extract_zip(zip_path, data_dir)
+    fsapt_dir = _flatten_single_root_dir(data_dir)
+    return temp_root, fsapt_dir
+
+
+def _validate_fsapt_dir(fsapt_dir: Path) -> Dict:
+    found_files = set(_list_files(fsapt_dir))
+    missing_files = sorted(REQUIRED_FSAPT_FILES - found_files)
+
+    if missing_files:
+        return {
+            "ok": False,
+            "missing_files": missing_files,
+            "invalid_files": [],
+            "found_files": sorted(found_files),
+            "required_files": sorted(REQUIRED_FSAPT_FILES),
+        }
+
+    from example_fsapt.fsapt import read_block, read_fragments, read_list, read_xyz
+
+    invalid: List[str] = []
 
     try:
-        zip_path.write_bytes(zip_bytes)
-        _safe_extract_zip(zip_path, data_dir)
-        fsapt_dir = _flatten_single_root_dir(data_dir)
-        _ensure_required_files(fsapt_dir)
-        _normalize_fragment_files(fsapt_dir)
+        geom = read_xyz(str(fsapt_dir / "geom.xyz"))
+    except Exception:
+        geom = []
+        invalid.append("geom.xyz")
+
+    natoms = len(geom)
+
+    z_a = []
+    z_b = []
+    try:
+        z_a = read_list(str(fsapt_dir / "ZA.dat"))
+    except Exception:
+        invalid.append("ZA.dat")
+    try:
+        z_b = read_list(str(fsapt_dir / "ZB.dat"))
+    except Exception:
+        invalid.append("ZB.dat")
+
+    if natoms and z_a and len(z_a) != natoms:
+        invalid.append("ZA.dat (atom count mismatch)")
+    if natoms and z_b and len(z_b) != natoms:
+        invalid.append("ZB.dat (atom count mismatch)")
+
+    _normalize_fragment_files(fsapt_dir)
+
+    f_a = None
+    f_b = None
+    try:
+        f_a = read_fragments(str(fsapt_dir / "fA.dat"))[0]
+    except Exception:
+        invalid.append("fA.dat")
+    try:
+        f_b = read_fragments(str(fsapt_dir / "fB.dat"))[0]
+    except Exception:
+        invalid.append("fB.dat")
+
+    for matrix_file in (
+        "QA.dat",
+        "QB.dat",
+        "Elst.dat",
+        "Exch.dat",
+        "IndAB.dat",
+        "IndBA.dat",
+    ):
+        try:
+            read_block(str(fsapt_dir / matrix_file))
+        except Exception:
+            invalid.append(matrix_file)
+
+    if natoms and f_a is not None and z_a:
+        monomer_a = {idx for idx, value in enumerate(z_a) if abs(value) > 1e-8}
+        for frag_name, indices in f_a.items():
+            bad = sorted(idx + 1 for idx in indices if idx not in monomer_a)
+            if bad:
+                invalid.append(
+                    f"fA.dat ({frag_name} has out-of-monomer indices: {bad[:8]})"
+                )
+                break
+
+    if natoms and f_b is not None and z_b:
+        monomer_b = {idx for idx, value in enumerate(z_b) if abs(value) > 1e-8}
+        for frag_name, indices in f_b.items():
+            bad = sorted(idx + 1 for idx in indices if idx not in monomer_b)
+            if bad:
+                invalid.append(
+                    f"fB.dat ({frag_name} has out-of-monomer indices: {bad[:8]})"
+                )
+                break
+
+    return {
+        "ok": len(invalid) == 0,
+        "missing_files": missing_files,
+        "invalid_files": invalid,
+        "found_files": sorted(found_files),
+        "required_files": sorted(REQUIRED_FSAPT_FILES),
+    }
+
+
+def validate_uploaded_fsapt_zip(zip_bytes: bytes) -> Dict:
+    temp_root, fsapt_dir = _extract_zip_payload(zip_bytes)
+    try:
+        return _validate_fsapt_dir(fsapt_dir)
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
+
+
+def process_uploaded_fsapt_zip(zip_bytes: bytes) -> Dict:
+    temp_root, fsapt_dir = _extract_zip_payload(zip_bytes)
+
+    try:
+        validation = _validate_fsapt_dir(fsapt_dir)
+        if not validation["ok"]:
+            missing = validation["missing_files"]
+            invalid = validation["invalid_files"]
+            details: List[str] = []
+            if missing:
+                details.append(f"missing files: {missing}")
+            if invalid:
+                details.append(f"invalid files: {invalid}")
+            raise ValueError(
+                "Uploaded FSAPT zip failed validation: " + "; ".join(details)
+            )
 
         from example_fsapt.fsapt import run_from_output
 
@@ -167,6 +283,7 @@ def process_uploaded_fsapt_zip(zip_bytes: bytes) -> Dict:
             "rows": rows,
             "parsed": parsed,
             "required_files": sorted(REQUIRED_FSAPT_FILES),
+            "validation": validation,
         }
     finally:
         shutil.rmtree(temp_root, ignore_errors=True)
