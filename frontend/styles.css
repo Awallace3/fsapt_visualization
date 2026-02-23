@@ -120,6 +120,14 @@ select {
   background: #fff;
 }
 
+input[type="number"] {
+  width: 106px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  background: #fff;
+}
+
 .button-row {
   display: flex;
   flex-wrap: wrap;

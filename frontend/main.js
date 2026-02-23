@@ -7,6 +7,8 @@ const heatmapComponentEl = document.getElementById("heatmapComponent");
 const focusMonomerEl = document.getElementById("focusMonomer");
 const focusFragmentEl = document.getElementById("focusFragment");
 const heatmapRangeEl = document.getElementById("heatmapRange");
+const heatmapMinEl = document.getElementById("heatmapMin");
+const heatmapMaxEl = document.getElementById("heatmapMax");
 const toggleSourceBtn = document.getElementById("toggleSourceBtn");
 const colTotalEl = document.getElementById("colTotal");
 const colElstEl = document.getElementById("colElst");
@@ -22,6 +24,7 @@ let tableSource = "ml";
 let latestHeatmapComponent = "Total";
 let latestRangeMin = null;
 let latestRangeMax = null;
+let latestDefaultBoundsByComponent = {};
 
 function setStatus(message, kind = "") {
   statusEl.textContent = message;
@@ -169,6 +172,63 @@ function colorFromBlueWhiteRed(value, maxAbs) {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
+function colorFromBlueWhiteRedBounded(value, minBound, maxBound) {
+  const safeMin = Number.isFinite(minBound) ? minBound : -1;
+  const safeMax = Number.isFinite(maxBound) ? maxBound : 1;
+  const minClamped = Math.min(safeMin, safeMax - 1e-8);
+  const maxClamped = Math.max(safeMax, minClamped + 1e-8);
+  const clipped = Math.max(minClamped, Math.min(maxClamped, value));
+
+  const neg = [47, 87, 184];
+  const mid = [224, 230, 245];
+  const pos = [201, 71, 56];
+  const blend = (a, b, x) => Math.round(a + (b - a) * x);
+
+  if (clipped >= 0) {
+    const t = maxClamped <= 0 ? 0 : Math.min(1, clipped / maxClamped);
+    const r = blend(mid[0], pos[0], t);
+    const g = blend(mid[1], pos[1], t);
+    const b = blend(mid[2], pos[2], t);
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
+  const t = minClamped >= 0 ? 0 : Math.min(1, clipped / minClamped);
+  const r = blend(mid[0], neg[0], t);
+  const g = blend(mid[1], neg[1], t);
+  const b = blend(mid[2], neg[2], t);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function setBoundaryInputs(minValue, maxValue) {
+  heatmapMinEl.value = Number.isFinite(minValue) ? minValue.toFixed(4) : "";
+  heatmapMaxEl.value = Number.isFinite(maxValue) ? maxValue.toFixed(4) : "";
+}
+
+function sanitizeBounds(minValue, maxValue, fallbackMin, fallbackMax) {
+  let minBound = Number.isFinite(minValue) ? minValue : fallbackMin;
+  let maxBound = Number.isFinite(maxValue) ? maxValue : fallbackMax;
+
+  if (minBound >= maxBound) {
+    minBound = fallbackMin;
+    maxBound = fallbackMax;
+  }
+
+  if (minBound >= maxBound) {
+    minBound = -1;
+    maxBound = 1;
+  }
+
+  return { minBound, maxBound };
+}
+
+function getActiveBounds(componentKey) {
+  const defaults = latestDefaultBoundsByComponent[componentKey] || { min: -1, max: 1 };
+  const minInput = Number.parseFloat(heatmapMinEl.value);
+  const maxInput = Number.parseFloat(heatmapMaxEl.value);
+  const { minBound, maxBound } = sanitizeBounds(minInput, maxInput, defaults.min, defaults.max);
+  return { minBound, maxBound };
+}
+
 function uniqueSortedNames(rows, key) {
   return [...new Set(rows.map((row) => row[key]).filter((name) => name && name !== "All"))].sort();
 }
@@ -237,7 +297,7 @@ function focusedContributions(rows, componentKey, side, focusedFragment, source)
   };
 }
 
-function applyHeatmapToStructure(componentKey = latestHeatmapComponent) {
+function applyHeatmapToStructure(componentKey = latestHeatmapComponent, options = {}) {
   if (!parsedMolecule || latestComparisonRows.length === 0) {
     updateRangeLabel();
     return;
@@ -268,7 +328,19 @@ function applyHeatmapToStructure(componentKey = latestHeatmapComponent) {
 
   const values = groups.map((group) => group.value);
   const maxAbs = Math.max(...values.map((value) => Math.abs(value)));
-  updateRangeLabel(-maxAbs, maxAbs);
+  const defaultMin = -maxAbs;
+  const defaultMax = maxAbs;
+  latestDefaultBoundsByComponent[componentKey] = { min: defaultMin, max: defaultMax };
+
+  const hasMin = Number.isFinite(Number.parseFloat(heatmapMinEl.value));
+  const hasMax = Number.isFinite(Number.parseFloat(heatmapMaxEl.value));
+  if (options.resetBounds || !hasMin || !hasMax) {
+    setBoundaryInputs(defaultMin, defaultMax);
+  }
+
+  const { minBound, maxBound } = getActiveBounds(componentKey);
+  setBoundaryInputs(minBound, maxBound);
+  updateRangeLabel(minBound, maxBound);
 
   const focusedMonomerSerials =
     side === "A"
@@ -308,7 +380,7 @@ function applyHeatmapToStructure(componentKey = latestHeatmapComponent) {
   }
 
   for (const group of groups) {
-    const color = colorFromBlueWhiteRed(group.value, maxAbs);
+    const color = colorFromBlueWhiteRedBounded(group.value, minBound, maxBound);
     const serials = group.indices.map((idx) => idx - 1);
     viewer.addStyle(
       { serial: serials },
@@ -435,8 +507,8 @@ function highlightPair(row) {
   viewer.render();
 }
 
-function rowShadeFromTotal(total, maxAbsTotal) {
-  const base = colorFromBlueWhiteRed(total, maxAbsTotal);
+function rowShadeFromTotal(total, minBound, maxBound) {
+  const base = colorFromBlueWhiteRedBounded(total, minBound, maxBound);
   const match = base.match(/\d+/g);
   if (!match || match.length < 3) {
     return "#ffffff";
@@ -483,6 +555,11 @@ function renderTable(rows) {
     1e-8,
     ...sortedRows.map((row) => Math.abs(componentValue(row, tableSource, "Total")))
   );
+  const fallbackMin = -maxAbsTotal;
+  const fallbackMax = maxAbsTotal;
+  const minInput = Number.parseFloat(heatmapMinEl.value);
+  const maxInput = Number.parseFloat(heatmapMaxEl.value);
+  const { minBound, maxBound } = sanitizeBounds(minInput, maxInput, fallbackMin, fallbackMax);
 
   for (const row of sortedRows) {
     const total = componentValue(row, tableSource, "Total");
@@ -501,7 +578,7 @@ function renderTable(rows) {
       <td>${ind.toFixed(4)}</td>
       <td>${disp.toFixed(4)}</td>
     `;
-    tr.style.backgroundColor = rowShadeFromTotal(total, maxAbsTotal);
+    tr.style.backgroundColor = rowShadeFromTotal(total, minBound, maxBound);
     tr.addEventListener("click", () => {
       for (const old of tableBody.querySelectorAll("tr")) {
         old.classList.remove("active");
@@ -606,7 +683,11 @@ document.getElementById("runCompareBtn").addEventListener("click", async () => {
 
 document.getElementById("applyHeatmapBtn").addEventListener("click", () => {
   latestHeatmapComponent = heatmapComponentEl.value;
-  applyHeatmapToStructure(latestHeatmapComponent);
+  if (latestComparisonRows.length > 0) {
+    renderTable(latestComparisonRows);
+  } else {
+    applyHeatmapToStructure(latestHeatmapComponent);
+  }
 });
 
 document.getElementById("savePngBtn").addEventListener("click", () => {
@@ -624,7 +705,10 @@ focusFragmentEl.addEventListener("change", () => {
 
 heatmapComponentEl.addEventListener("change", () => {
   latestHeatmapComponent = heatmapComponentEl.value;
-  applyHeatmapToStructure(latestHeatmapComponent);
+  applyHeatmapToStructure(latestHeatmapComponent, { resetBounds: true });
+  if (latestComparisonRows.length > 0) {
+    renderTable(latestComparisonRows);
+  }
 });
 
 toggleSourceBtn.addEventListener("click", () => {
