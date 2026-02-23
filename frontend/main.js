@@ -3,16 +3,23 @@ const moleculeInput = document.getElementById("moleculeInput");
 const fragAInput = document.getElementById("fragAInput");
 const fragBInput = document.getElementById("fragBInput");
 const tableBody = document.querySelector("#resultsTable tbody");
-const heatmapMetricEl = document.getElementById("heatmapMetric");
+const heatmapComponentEl = document.getElementById("heatmapComponent");
 const focusMonomerEl = document.getElementById("focusMonomer");
 const focusFragmentEl = document.getElementById("focusFragment");
 const heatmapRangeEl = document.getElementById("heatmapRange");
+const toggleSourceBtn = document.getElementById("toggleSourceBtn");
+const colTotalEl = document.getElementById("colTotal");
+const colElstEl = document.getElementById("colElst");
+const colExchEl = document.getElementById("colExch");
+const colIndEl = document.getElementById("colInd");
+const colDispEl = document.getElementById("colDisp");
 
 const viewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
 
 let parsedMolecule = null;
 let latestComparisonRows = [];
-let latestHeatmapMetric = "ml_Total";
+let tableSource = "ml";
+let latestHeatmapComponent = "Total";
 let latestRangeMin = null;
 let latestRangeMax = null;
 
@@ -109,14 +116,29 @@ function updateRangeLabel(minValue = null, maxValue = null) {
   heatmapRangeEl.textContent = `Range: ${minValue.toFixed(4)} to ${maxValue.toFixed(4)} kcal/mol`;
 }
 
-function metricLabel(metricKey) {
+function componentLabel(componentKey) {
   const names = {
-    ml_Total: "ML Total",
-    psi4_Total: "Psi4 Total",
-    err_Total: "Error Total",
-    Total: "Total (ML-only)",
+    Total: "Total",
+    Elst: "Elst",
+    Exch: "Exch",
+    Ind: "Ind",
+    Disp: "Disp",
   };
-  return names[metricKey] || metricKey;
+  return names[componentKey] || componentKey;
+}
+
+function sourceLabel(source) {
+  return source === "psi4" ? "Psi4" : "ML";
+}
+
+function updateTableHeaderLabels() {
+  const prefix = sourceLabel(tableSource);
+  colTotalEl.textContent = `${prefix} Total`;
+  colElstEl.textContent = `${prefix} Elst`;
+  colExchEl.textContent = `${prefix} Exch`;
+  colIndEl.textContent = `${prefix} Ind`;
+  colDispEl.textContent = `${prefix} Disp`;
+  toggleSourceBtn.textContent = `Showing: ${prefix}`;
 }
 
 function colorFromBlueWhiteRed(value, maxAbs) {
@@ -145,22 +167,6 @@ function colorFromBlueWhiteRed(value, maxAbs) {
     b = blend(mid[2], pos[2], t);
   }
   return `rgb(${r}, ${g}, ${b})`;
-}
-
-function valueForMetric(row, metricKey) {
-  if (typeof row[metricKey] === "number") {
-    return row[metricKey];
-  }
-
-  if (metricKey === "ml_Total") {
-    return typeof row.Total === "number" ? row.Total : 0;
-  }
-
-  if (metricKey === "Total") {
-    return typeof row.Total === "number" ? row.Total : 0;
-  }
-
-  return 0;
 }
 
 function uniqueSortedNames(rows, key) {
@@ -198,7 +204,7 @@ function populateFocusFragmentOptions() {
   }
 }
 
-function focusedContributions(rows, metricKey, side, focusedFragment) {
+function focusedContributions(rows, componentKey, side, focusedFragment, source) {
   const out = new Map();
   const sourceKey = side === "A" ? "Frag1" : "Frag2";
   const targetKey = side === "A" ? "Frag2" : "Frag1";
@@ -222,7 +228,7 @@ function focusedContributions(rows, metricKey, side, focusedFragment) {
         value: 0,
       });
     }
-    out.get(name).value += valueForMetric(row, metricKey);
+    out.get(name).value += componentValue(row, source, componentKey);
   }
 
   return {
@@ -231,7 +237,7 @@ function focusedContributions(rows, metricKey, side, focusedFragment) {
   };
 }
 
-function applyHeatmapToStructure(metricKey = latestHeatmapMetric) {
+function applyHeatmapToStructure(componentKey = latestHeatmapComponent) {
   if (!parsedMolecule || latestComparisonRows.length === 0) {
     updateRangeLabel();
     return;
@@ -244,8 +250,14 @@ function applyHeatmapToStructure(metricKey = latestHeatmapMetric) {
     return;
   }
 
-  latestHeatmapMetric = metricKey;
-  const heatmapData = focusedContributions(latestComparisonRows, metricKey, side, focusedFragment);
+  latestHeatmapComponent = componentKey;
+  const heatmapData = focusedContributions(
+    latestComparisonRows,
+    componentKey,
+    side,
+    focusedFragment,
+    tableSource
+  );
   const groups = heatmapData.targets;
 
   if (groups.length === 0) {
@@ -255,10 +267,8 @@ function applyHeatmapToStructure(metricKey = latestHeatmapMetric) {
   }
 
   const values = groups.map((group) => group.value);
-  const minValue = Math.min(...values);
-  const maxValue = Math.max(...values);
-  const maxAbs = Math.max(Math.abs(minValue), Math.abs(maxValue));
-  updateRangeLabel(minValue, maxValue);
+  const maxAbs = Math.max(...values.map((value) => Math.abs(value)));
+  updateRangeLabel(-maxAbs, maxAbs);
 
   const focusedMonomerSerials =
     side === "A"
@@ -326,7 +336,7 @@ function loadImageFromUri(uri) {
 async function saveCurrentViewPng() {
   try {
     if (latestComparisonRows.length > 0) {
-      applyHeatmapToStructure(latestHeatmapMetric);
+      applyHeatmapToStructure(latestHeatmapComponent);
     }
 
     const uri = viewer.pngURI();
@@ -355,7 +365,7 @@ async function saveCurrentViewPng() {
 
     ctx.fillStyle = "#1d2a2e";
     ctx.font = "600 20px IBM Plex Sans, Segoe UI, sans-serif";
-    const metricText = metricLabel(latestHeatmapMetric);
+    const metricText = `${sourceLabel(tableSource)} ${componentLabel(latestHeatmapComponent)}`;
     const focusText = `Focus ${focusMonomerEl.value}: ${focusFragmentEl.value || "n/a"}`;
     ctx.fillText(`${metricText} heatmap`, leftPad, legendY);
     ctx.font = "500 16px IBM Plex Sans, Segoe UI, sans-serif";
@@ -398,7 +408,7 @@ function highlightPair(row) {
   }
 
   if (latestComparisonRows.length > 0) {
-    applyHeatmapToStructure(latestHeatmapMetric);
+    applyHeatmapToStructure(latestHeatmapComponent);
   } else {
     drawMolecule(parsedMolecule);
   }
@@ -454,38 +464,36 @@ function componentValue(row, source, component) {
 
 function renderTable(rows) {
   latestComparisonRows = rows;
+  updateTableHeaderLabels();
   populateFocusFragmentOptions();
   tableBody.innerHTML = "";
 
-  for (const row of rows) {
-    const mlTotal = componentValue(row, "ml", "Total");
-    const mlElst = componentValue(row, "ml", "Elst");
-    const mlExch = componentValue(row, "ml", "Exch");
-    const mlInd = componentValue(row, "ml", "Ind");
-    const mlDisp = componentValue(row, "ml", "Disp");
-    const psi4Total = componentValue(row, "psi4", "Total");
-    const psi4Elst = componentValue(row, "psi4", "Elst");
-    const psi4Exch = componentValue(row, "psi4", "Exch");
-    const psi4Ind = componentValue(row, "psi4", "Ind");
-    const psi4Disp = componentValue(row, "psi4", "Disp");
+  const sortedRows = [...rows].sort((a, b) => {
+    const absA = Math.abs(componentValue(a, tableSource, "Total"));
+    const absB = Math.abs(componentValue(b, tableSource, "Total"));
+    return absB - absA;
+  });
+
+  for (const row of sortedRows) {
+    const total = componentValue(row, tableSource, "Total");
+    const elst = componentValue(row, tableSource, "Elst");
+    const exch = componentValue(row, tableSource, "Exch");
+    const ind = componentValue(row, tableSource, "Ind");
+    const disp = componentValue(row, tableSource, "Disp");
+    const absTotal = Math.abs(total);
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${row.Frag1}</td>
       <td>${row.Frag2}</td>
-      <td>${mlTotal.toFixed(4)}</td>
-      <td>${mlElst.toFixed(4)}</td>
-      <td>${mlExch.toFixed(4)}</td>
-      <td>${mlInd.toFixed(4)}</td>
-      <td>${mlDisp.toFixed(4)}</td>
-      <td>${psi4Total.toFixed(4)}</td>
-      <td>${psi4Elst.toFixed(4)}</td>
-      <td>${psi4Exch.toFixed(4)}</td>
-      <td>${psi4Ind.toFixed(4)}</td>
-      <td>${psi4Disp.toFixed(4)}</td>
+      <td>${total.toFixed(4)}</td>
+      <td>${elst.toFixed(4)}</td>
+      <td>${exch.toFixed(4)}</td>
+      <td>${ind.toFixed(4)}</td>
+      <td>${disp.toFixed(4)}</td>
+      <td>${absTotal.toFixed(4)}</td>
     `;
-    const absErr = Math.abs(mlTotal - psi4Total);
-    tr.style.backgroundColor = errorShade(absErr);
+    tr.style.backgroundColor = errorShade(absTotal);
     tr.addEventListener("click", () => {
       for (const old of tableBody.querySelectorAll("tr")) {
         old.classList.remove("active");
@@ -496,7 +504,7 @@ function renderTable(rows) {
     tableBody.appendChild(tr);
   }
 
-  applyHeatmapToStructure(heatmapMetricEl.value || latestHeatmapMetric);
+  applyHeatmapToStructure(heatmapComponentEl.value || latestHeatmapComponent);
 }
 
 async function loadExample() {
@@ -589,8 +597,8 @@ document.getElementById("runCompareBtn").addEventListener("click", async () => {
 });
 
 document.getElementById("applyHeatmapBtn").addEventListener("click", () => {
-  latestHeatmapMetric = heatmapMetricEl.value;
-  applyHeatmapToStructure(latestHeatmapMetric);
+  latestHeatmapComponent = heatmapComponentEl.value;
+  applyHeatmapToStructure(latestHeatmapComponent);
 });
 
 document.getElementById("savePngBtn").addEventListener("click", () => {
@@ -599,27 +607,33 @@ document.getElementById("savePngBtn").addEventListener("click", () => {
 
 focusMonomerEl.addEventListener("change", () => {
   populateFocusFragmentOptions();
-  applyHeatmapToStructure(latestHeatmapMetric);
+  applyHeatmapToStructure(latestHeatmapComponent);
 });
 
 focusFragmentEl.addEventListener("change", () => {
-  applyHeatmapToStructure(latestHeatmapMetric);
+  applyHeatmapToStructure(latestHeatmapComponent);
 });
 
-heatmapMetricEl.addEventListener("change", () => {
-  latestHeatmapMetric = heatmapMetricEl.value;
-  applyHeatmapToStructure(latestHeatmapMetric);
+heatmapComponentEl.addEventListener("change", () => {
+  latestHeatmapComponent = heatmapComponentEl.value;
+  applyHeatmapToStructure(latestHeatmapComponent);
+});
+
+toggleSourceBtn.addEventListener("click", () => {
+  tableSource = tableSource === "ml" ? "psi4" : "ml";
+  renderTable(latestComparisonRows);
 });
 
 window.addEventListener("resize", () => {
   viewer.resize();
   if (parsedMolecule) {
     if (latestComparisonRows.length > 0) {
-      applyHeatmapToStructure(latestHeatmapMetric);
+      applyHeatmapToStructure(latestHeatmapComponent);
     } else {
       drawMolecule(parsedMolecule);
     }
   }
 });
 
+updateTableHeaderLabels();
 loadExample().catch((err) => setStatus(err.message, "error"));

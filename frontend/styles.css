@@ -53,6 +53,13 @@ body {
   grid-area: results;
 }
 
+.results-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+}
+
 h1,
 h2 {
   margin: 0 0 0.3rem;

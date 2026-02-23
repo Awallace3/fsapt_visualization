@@ -13,13 +13,6 @@
         <div class="viewer-head">
           <h2>Molecular View</h2>
           <div class="heatmap-controls">
-            <label for="heatmapMetric">Heatmap metric</label>
-            <select id="heatmapMetric">
-              <option value="ml_Total">ML Total</option>
-              <option value="psi4_Total">Psi4 Total</option>
-              <option value="err_Total">Error Total</option>
-              <option value="Total">Total (ML-only)</option>
-            </select>
             <label for="focusMonomer">Focus monomer</label>
             <select id="focusMonomer">
               <option value="A">Monomer A fragment</option>
@@ -27,6 +20,14 @@
             </select>
             <label for="focusFragment">Focus fragment</label>
             <select id="focusFragment"></select>
+            <label for="heatmapComponent">Heatmap component</label>
+            <select id="heatmapComponent">
+              <option value="Total">Total</option>
+              <option value="Elst">Elst</option>
+              <option value="Exch">Exch</option>
+              <option value="Ind">Ind</option>
+              <option value="Disp">Disp</option>
+            </select>
             <button id="applyHeatmapBtn" type="button">Apply Heatmap</button>
             <button id="savePngBtn" type="button">Save PNG</button>
           </div>
@@ -71,7 +72,10 @@
       </section>
 
       <section class="panel results">
-        <h2>Error Table</h2>
+        <div class="results-head">
+          <h2>Component Energies</h2>
+          <button id="toggleSourceBtn" type="button">Showing: ML</button>
+        </div>
         <p class="hint">Click a row to highlight its fragment pair in the viewer.</p>
         <div class="table-wrap">
           <table id="resultsTable">
@@ -79,16 +83,12 @@
               <tr>
                 <th>Frag1</th>
                 <th>Frag2</th>
-                <th>ML Total</th>
-                <th>ML Elst</th>
-                <th>ML Exch</th>
-                <th>ML Ind</th>
-                <th>ML Disp</th>
-                <th>Psi4 Total</th>
-                <th>Psi4 Elst</th>
-                <th>Psi4 Exch</th>
-                <th>Psi4 Ind</th>
-                <th>Psi4 Disp</th>
+                <th id="colTotal">Total</th>
+                <th id="colElst">Elst</th>
+                <th id="colExch">Exch</th>
+                <th id="colInd">Ind</th>
+                <th id="colDisp">Disp</th>
+                <th>|Total|</th>
               </tr>
             </thead>
             <tbody></tbody>
