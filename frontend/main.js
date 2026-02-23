@@ -15,6 +15,7 @@ const colElstEl = document.getElementById("colElst");
 const colExchEl = document.getElementById("colExch");
 const colIndEl = document.getElementById("colInd");
 const colDispEl = document.getElementById("colDisp");
+const uploadFsaptInput = document.getElementById("uploadFsaptInput");
 
 const viewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
 
@@ -81,6 +82,22 @@ async function callJson(url, method = "GET", body = null) {
   const data = await res.json();
   if (!res.ok) {
     throw new Error(data.error || `Request failed: ${res.status}`);
+  }
+  return data;
+}
+
+async function uploadZip(url, file) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(url, {
+    method: "POST",
+    body: formData,
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || `Upload failed: ${res.status}`);
   }
   return data;
 }
@@ -649,6 +666,15 @@ async function runCompare() {
   setStatus("Comparison complete.", "ok");
 }
 
+async function runUploadFsapt(file) {
+  setStatus("Uploading and processing FSAPT zip...");
+  const data = await uploadZip("/api/upload/psi4-fsapt-zip", file);
+  drawMolecule(data.parsed);
+  tableSource = "psi4";
+  renderTable(data.rows);
+  setStatus("Uploaded FSAPT data processed. Showing Psi4 fragment energies.", "ok");
+}
+
 document.getElementById("loadExampleBtn").addEventListener("click", async () => {
   try {
     await loadExample();
@@ -678,6 +704,24 @@ document.getElementById("runCompareBtn").addEventListener("click", async () => {
     await runCompare();
   } catch (err) {
     setStatus(err.message, "error");
+  }
+});
+
+document.getElementById("uploadFsaptBtn").addEventListener("click", () => {
+  uploadFsaptInput.click();
+});
+
+uploadFsaptInput.addEventListener("change", async () => {
+  const file = uploadFsaptInput.files && uploadFsaptInput.files[0];
+  if (!file) {
+    return;
+  }
+  try {
+    await runUploadFsapt(file);
+  } catch (err) {
+    setStatus(err.message, "error");
+  } finally {
+    uploadFsaptInput.value = "";
   }
 });
 

@@ -13,6 +13,7 @@ from backend.example_data import (
 from backend.services.compare import compare_rows
 from backend.services.fsapt_ml import run_ml_fsapt
 from backend.services.fsapt_psi4 import run_psi4_fsapt
+from backend.services.fsapt_upload import process_uploaded_fsapt_zip
 from backend.services.parsing import (
     normalize_fragments_input,
     parse_molecule_string,
@@ -95,6 +96,24 @@ def create_app() -> Flask:
             basis=basis,
         )
         return jsonify({"rows": rows, "parsed": common["parsed"], "basis": basis})
+
+    @app.post("/api/upload/psi4-fsapt-zip")
+    def upload_psi4_fsapt_zip() -> Any:
+        if "file" not in request.files:
+            raise ValueError(
+                "No file uploaded. Provide a zip file under form field 'file'."
+            )
+
+        uploaded = request.files["file"]
+        if uploaded.filename is None or not uploaded.filename.lower().endswith(".zip"):
+            raise ValueError("Uploaded file must be a .zip archive")
+
+        payload = uploaded.read()
+        if not payload:
+            raise ValueError("Uploaded zip file is empty")
+
+        result = process_uploaded_fsapt_zip(payload)
+        return jsonify(result)
 
     @app.post("/api/compare")
     def compare() -> Any:

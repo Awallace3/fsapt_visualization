@@ -22,6 +22,16 @@ body {
   background: radial-gradient(circle at top right, #f8f2e0, var(--bg) 55%);
 }
 
+.upload-footer {
+  margin: 0 1rem 1rem;
+  padding: 0.7rem 0.9rem;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fcf8ef;
+  font-size: 0.86rem;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 1fr 1fr;

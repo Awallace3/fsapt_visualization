@@ -53,6 +53,8 @@
 
         <div class="button-row">
           <button id="loadExampleBtn" type="button">Load AP3 Example</button>
+          <button id="uploadFsaptBtn" type="button">Upload FSAPT Data</button>
+          <input id="uploadFsaptInput" type="file" accept=".zip" hidden />
           <button id="parseBtn" type="button">Parse Molecule</button>
           <button id="runMlBtn" type="button">Run ML</button>
           <button id="runCompareBtn" type="button">Run ML + Psi4 Compare</button>
@@ -99,6 +101,12 @@
         </div>
       </section>
     </main>
+
+    <footer class="upload-footer">
+      Upload zip must include these Psi4 F-SAPT files: `geom.xyz`, `fA.dat`, `fB.dat`,
+      `QA.dat`, `QB.dat`, `ZA.dat`, `ZB.dat`, `Elst.dat`, `Exch.dat`, `IndAB.dat`,
+      `IndBA.dat`. Optional files like `Disp.dat` are supported when present.
+    </footer>
 
     <script type="module" src="/main.js"></script>
   </body>

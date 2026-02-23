@@ -44,6 +44,7 @@ http://localhost:5000
 - `POST /api/parse-molecule`
 - `POST /api/predict/ml-fsapt`
 - `POST /api/predict/psi4-fsapt`
+- `POST /api/upload/psi4-fsapt-zip`
 - `POST /api/compare`
 
 ## Notes
@@ -53,3 +54,6 @@ http://localhost:5000
 - Psi4 prediction requires `psi4` installed.
 - Fragment indices are expected to be 1-indexed (aligned with Psi4
   `fsapt_analysis` usage).
+- Uploaded FSAPT zip processing requires these files at archive root (or single
+  nested directory): `geom.xyz`, `fA.dat`, `fB.dat`, `QA.dat`, `QB.dat`,
+  `ZA.dat`, `ZB.dat`, `Elst.dat`, `Exch.dat`, `IndAB.dat`, `IndBA.dat`.
