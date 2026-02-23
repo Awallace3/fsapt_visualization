@@ -306,7 +306,11 @@ function applyHeatmapToStructure(metricKey = latestHeatmapMetric) {
     );
   }
 
-  viewer.zoomTo();
+  if (focusedMonomerSerials.length > 0) {
+    viewer.zoomTo({ serial: focusedMonomerSerials });
+  } else {
+    viewer.zoomTo();
+  }
   viewer.render();
 }
 
@@ -430,22 +434,58 @@ function errorShade(absErr) {
   return `rgb(${red}, ${green}, ${blue})`;
 }
 
+function valueOrZero(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function componentValue(row, source, component) {
+  if (source === "ml") {
+    if (component === "Ind") {
+      return valueOrZero(row.ml_IndAB) + valueOrZero(row.ml_IndBA);
+    }
+    return valueOrZero(row[`ml_${component}`]);
+  }
+
+  if (component === "Ind") {
+    return valueOrZero(row.psi4_IndAB) + valueOrZero(row.psi4_IndBA);
+  }
+  return valueOrZero(row[`psi4_${component}`]);
+}
+
 function renderTable(rows) {
   latestComparisonRows = rows;
   populateFocusFragmentOptions();
   tableBody.innerHTML = "";
 
   for (const row of rows) {
+    const mlTotal = componentValue(row, "ml", "Total");
+    const mlElst = componentValue(row, "ml", "Elst");
+    const mlExch = componentValue(row, "ml", "Exch");
+    const mlInd = componentValue(row, "ml", "Ind");
+    const mlDisp = componentValue(row, "ml", "Disp");
+    const psi4Total = componentValue(row, "psi4", "Total");
+    const psi4Elst = componentValue(row, "psi4", "Elst");
+    const psi4Exch = componentValue(row, "psi4", "Exch");
+    const psi4Ind = componentValue(row, "psi4", "Ind");
+    const psi4Disp = componentValue(row, "psi4", "Disp");
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${row.Frag1}</td>
       <td>${row.Frag2}</td>
-      <td>${row.ml_Total.toFixed(4)}</td>
-      <td>${row.psi4_Total.toFixed(4)}</td>
-      <td>${row.err_Total.toFixed(4)}</td>
-      <td>${row.abs_err_Total.toFixed(4)}</td>
+      <td>${mlTotal.toFixed(4)}</td>
+      <td>${mlElst.toFixed(4)}</td>
+      <td>${mlExch.toFixed(4)}</td>
+      <td>${mlInd.toFixed(4)}</td>
+      <td>${mlDisp.toFixed(4)}</td>
+      <td>${psi4Total.toFixed(4)}</td>
+      <td>${psi4Elst.toFixed(4)}</td>
+      <td>${psi4Exch.toFixed(4)}</td>
+      <td>${psi4Ind.toFixed(4)}</td>
+      <td>${psi4Disp.toFixed(4)}</td>
     `;
-    tr.style.backgroundColor = errorShade(row.abs_err_Total);
+    const absErr = Math.abs(mlTotal - psi4Total);
+    tr.style.backgroundColor = errorShade(absErr);
     tr.addEventListener("click", () => {
       for (const old of tableBody.querySelectorAll("tr")) {
         old.classList.remove("active");
@@ -489,7 +529,17 @@ async function runMl() {
   const comparisonLike = data.rows.map((row) => ({
     ...row,
     ml_Total: row.Total,
+    ml_Elst: row.Elst,
+    ml_Exch: row.Exch,
+    ml_IndAB: row.IndAB,
+    ml_IndBA: row.IndBA,
+    ml_Disp: row.Disp,
     psi4_Total: 0,
+    psi4_Elst: 0,
+    psi4_Exch: 0,
+    psi4_IndAB: 0,
+    psi4_IndBA: 0,
+    psi4_Disp: 0,
     err_Total: row.Total,
     abs_err_Total: Math.abs(row.Total),
   }));

@@ -196,3 +196,5 @@ node_modules
 package-lock.json
 tsconfig.tsbuildinfo
 yarn.lock
+none
+psi\.*

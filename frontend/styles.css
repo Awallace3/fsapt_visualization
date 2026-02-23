@@ -27,8 +27,8 @@ body {
   grid-template-columns: 1fr 1fr;
   grid-template-areas:
     "viewer viewer"
-    "controls controls"
-    "results results";
+    "results results"
+    "controls controls";
   gap: 1rem;
   padding: 1rem;
 }
@@ -221,8 +221,8 @@ tbody tr.active {
     grid-template-columns: 1fr;
     grid-template-areas:
       "viewer"
-      "controls"
-      "results";
+      "results"
+      "controls";
   }
 
   #viewer {
