@@ -435,13 +435,18 @@ function highlightPair(row) {
   viewer.render();
 }
 
-function errorShade(absErr) {
-  const bounded = Math.min(2.5, absErr);
-  const strength = bounded / 2.5;
-  const red = Math.round(255 - 35 * strength);
-  const green = Math.round(255 - 140 * strength);
-  const blue = Math.round(255 - 165 * strength);
-  return `rgb(${red}, ${green}, ${blue})`;
+function rowShadeFromTotal(total, maxAbsTotal) {
+  const base = colorFromBlueWhiteRed(total, maxAbsTotal);
+  const match = base.match(/\d+/g);
+  if (!match || match.length < 3) {
+    return "#ffffff";
+  }
+  const [r, g, b] = match.map((x) => Number.parseInt(x, 10));
+  const mix = 0.82;
+  const rr = Math.round(255 * mix + r * (1 - mix));
+  const gg = Math.round(255 * mix + g * (1 - mix));
+  const bb = Math.round(255 * mix + b * (1 - mix));
+  return `rgb(${rr}, ${gg}, ${bb})`;
 }
 
 function valueOrZero(value) {
@@ -474,13 +479,17 @@ function renderTable(rows) {
     return absB - absA;
   });
 
+  const maxAbsTotal = Math.max(
+    1e-8,
+    ...sortedRows.map((row) => Math.abs(componentValue(row, tableSource, "Total")))
+  );
+
   for (const row of sortedRows) {
     const total = componentValue(row, tableSource, "Total");
     const elst = componentValue(row, tableSource, "Elst");
     const exch = componentValue(row, tableSource, "Exch");
     const ind = componentValue(row, tableSource, "Ind");
     const disp = componentValue(row, tableSource, "Disp");
-    const absTotal = Math.abs(total);
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -491,9 +500,8 @@ function renderTable(rows) {
       <td>${exch.toFixed(4)}</td>
       <td>${ind.toFixed(4)}</td>
       <td>${disp.toFixed(4)}</td>
-      <td>${absTotal.toFixed(4)}</td>
     `;
-    tr.style.backgroundColor = errorShade(absTotal);
+    tr.style.backgroundColor = rowShadeFromTotal(total, maxAbsTotal);
     tr.addEventListener("click", () => {
       for (const old of tableBody.querySelectorAll("tr")) {
         old.classList.remove("active");
