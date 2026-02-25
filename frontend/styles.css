@@ -70,6 +70,31 @@ body {
   gap: 0.8rem;
 }
 
+.results-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.results-controls label {
+  margin: 0;
+}
+
+.component-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin: 0.3rem 0 0.7rem;
+}
+
+.component-filters label {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 500;
+}
+
 h1,
 h2 {
   margin: 0 0 0.3rem;
@@ -261,7 +286,8 @@ tbody tr.active {
 
   .viewer-head,
   .heatmap-controls,
-  .legend-wrap {
+  .legend-wrap,
+  .results-controls {
     flex-wrap: wrap;
   }
 

@@ -2,6 +2,8 @@ const statusEl = document.getElementById("status");
 const moleculeInput = document.getElementById("moleculeInput");
 const fragAInput = document.getElementById("fragAInput");
 const fragBInput = document.getElementById("fragBInput");
+const resultsTable = document.getElementById("resultsTable");
+const tableHead = resultsTable.querySelector("thead");
 const tableBody = document.querySelector("#resultsTable tbody");
 const heatmapComponentEl = document.getElementById("heatmapComponent");
 const focusMonomerEl = document.getElementById("focusMonomer");
@@ -10,11 +12,8 @@ const heatmapRangeEl = document.getElementById("heatmapRange");
 const heatmapMinEl = document.getElementById("heatmapMin");
 const heatmapMaxEl = document.getElementById("heatmapMax");
 const toggleSourceBtn = document.getElementById("toggleSourceBtn");
-const colTotalEl = document.getElementById("colTotal");
-const colElstEl = document.getElementById("colElst");
-const colExchEl = document.getElementById("colExch");
-const colIndEl = document.getElementById("colInd");
-const colDispEl = document.getElementById("colDisp");
+const tableViewModeEl = document.getElementById("tableViewMode");
+const componentFilterEls = Array.from(document.querySelectorAll("#componentFilters input[type='checkbox']"));
 const uploadFsaptInput = document.getElementById("uploadFsaptInput");
 const resetHeatmapRangeBtn = document.getElementById("resetHeatmapRangeBtn");
 
@@ -23,11 +22,13 @@ const viewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
 let parsedMolecule = null;
 let latestComparisonRows = [];
 let tableSource = "ml";
+let tableViewMode = tableViewModeEl?.value || "tabulated";
 let latestHeatmapComponent = "Total";
 let latestRangeMin = null;
 let latestRangeMax = null;
 let latestDefaultBoundsByComponent = {};
 let uploadedPsi4Rows = [];
+const ALL_COMPONENTS = ["Total", "Elst", "Exch", "Ind", "Disp"];
 
 function parseErrorDetails(data) {
   if (!data || typeof data !== "object") {
@@ -243,10 +244,13 @@ function clearVisualization() {
   uploadedPsi4Rows = [];
   latestDefaultBoundsByComponent = {};
   tableSource = "ml";
+  tableViewMode = "tabulated";
+  tableViewModeEl.value = "tabulated";
 
   tableBody.innerHTML = "";
   focusFragmentEl.innerHTML = "";
-  updateTableHeaderLabels();
+  updateTableModeControls();
+  renderTableHeader(getSelectedComponents());
   updateRangeLabel();
   setBoundaryInputs(Number.NaN, Number.NaN);
 
@@ -307,14 +311,53 @@ function sourceLabel(source) {
   return source === "psi4" ? "Psi4" : "ML";
 }
 
-function updateTableHeaderLabels() {
+function getSelectedComponents() {
+  const selected = componentFilterEls
+    .filter((el) => el.checked)
+    .map((el) => el.dataset.component)
+    .filter((component) => ALL_COMPONENTS.includes(component));
+  return selected.length > 0 ? selected : ["Total"];
+}
+
+function enforceAtLeastOneComponent(changedEl) {
+  const checked = componentFilterEls.filter((el) => el.checked);
+  if (checked.length === 0 && changedEl) {
+    changedEl.checked = true;
+  }
+}
+
+function updateTableModeControls() {
   const prefix = sourceLabel(tableSource);
-  colTotalEl.textContent = `${prefix} Total`;
-  colElstEl.textContent = `${prefix} Elst`;
-  colExchEl.textContent = `${prefix} Exch`;
-  colIndEl.textContent = `${prefix} Ind`;
-  colDispEl.textContent = `${prefix} Disp`;
   toggleSourceBtn.textContent = `Showing: ${prefix}`;
+  toggleSourceBtn.disabled = tableViewMode !== "tabulated";
+}
+
+function renderTableHeader(selectedComponents) {
+  const tr = document.createElement("tr");
+  const makeTh = (text) => {
+    const th = document.createElement("th");
+    th.textContent = text;
+    tr.appendChild(th);
+  };
+
+  makeTh("Frag1");
+  makeTh("Frag2");
+
+  if (tableViewMode === "compare") {
+    for (const component of selectedComponents) {
+      makeTh(`Psi4 ${component}`);
+      makeTh(`ML ${component}`);
+      makeTh(`Diff ${component}`);
+    }
+  } else {
+    const prefix = sourceLabel(tableSource);
+    for (const component of selectedComponents) {
+      makeTh(`${prefix} ${component}`);
+    }
+  }
+
+  tableHead.innerHTML = "";
+  tableHead.appendChild(tr);
 }
 
 function colorFromBlueWhiteRed(value, maxAbs) {
@@ -437,7 +480,7 @@ function populateFocusFragmentOptions() {
   }
 }
 
-function focusedContributions(rows, componentKey, side, focusedFragment, source) {
+function focusedContributions(rows, componentKey, side, focusedFragment) {
   const out = new Map();
   const sourceKey = side === "A" ? "Frag1" : "Frag2";
   const targetKey = side === "A" ? "Frag2" : "Frag1";
@@ -461,7 +504,7 @@ function focusedContributions(rows, componentKey, side, focusedFragment, source)
         value: 0,
       });
     }
-    out.get(name).value += componentValue(row, source, componentKey);
+    out.get(name).value += differenceComponentValue(row, componentKey);
   }
 
   return {
@@ -488,8 +531,7 @@ function applyHeatmapToStructure(componentKey = latestHeatmapComponent, options 
     latestComparisonRows,
     componentKey,
     side,
-    focusedFragment,
-    tableSource
+    focusedFragment
   );
   const groups = heatmapData.targets;
 
@@ -610,7 +652,7 @@ async function saveCurrentViewPng() {
 
     ctx.fillStyle = "#1d2a2e";
     ctx.font = "600 20px IBM Plex Sans, Segoe UI, sans-serif";
-    const metricText = `${sourceLabel(tableSource)} ${componentLabel(latestHeatmapComponent)}`;
+    const metricText = `ML - Psi4 ${componentLabel(latestHeatmapComponent)}`;
     const focusText = `Focus ${focusMonomerEl.value}: ${focusFragmentEl.value || "n/a"}`;
     ctx.fillText(`${metricText} heatmap`, leftPad, legendY);
     ctx.font = "500 16px IBM Plex Sans, Segoe UI, sans-serif";
@@ -694,6 +736,13 @@ function rowShadeFromTotal(total, minBound, maxBound) {
   return `rgb(${rr}, ${gg}, ${bb})`;
 }
 
+function tableValueForActiveComponent(row, component) {
+  if (tableViewMode === "compare") {
+    return differenceComponentValue(row, component);
+  }
+  return componentValue(row, tableSource, component);
+}
+
 function valueOrZero(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
@@ -712,46 +761,55 @@ function componentValue(row, source, component) {
   return valueOrZero(row[`psi4_${component}`]);
 }
 
+function differenceComponentValue(row, component) {
+  return componentValue(row, "ml", component) - componentValue(row, "psi4", component);
+}
+
 function renderTable(rows) {
   latestComparisonRows = rows;
-  updateTableHeaderLabels();
+  updateTableModeControls();
   populateFocusFragmentOptions();
+  const selectedComponents = getSelectedComponents();
+  renderTableHeader(selectedComponents);
   tableBody.innerHTML = "";
 
   const sortedRows = [...rows].sort((a, b) => {
-    const absA = Math.abs(componentValue(a, tableSource, "Total"));
-    const absB = Math.abs(componentValue(b, tableSource, "Total"));
+    const sortComponent = latestHeatmapComponent || "Total";
+    const absA = Math.abs(tableValueForActiveComponent(a, sortComponent));
+    const absB = Math.abs(tableValueForActiveComponent(b, sortComponent));
     return absB - absA;
   });
 
-  const maxAbsTotal = Math.max(
-    1e-8,
-    ...sortedRows.map((row) => Math.abs(componentValue(row, tableSource, "Total")))
-  );
-  const fallbackMin = -maxAbsTotal;
-  const fallbackMax = maxAbsTotal;
+  const colorComponent = latestHeatmapComponent || "Total";
+  const colorValues = sortedRows.map((row) => tableValueForActiveComponent(row, colorComponent));
+  const maxAbsForColor = Math.max(1e-8, ...colorValues.map((value) => Math.abs(value)));
+
+  const fallbackMin = -maxAbsForColor;
+  const fallbackMax = maxAbsForColor;
   const minInput = Number.parseFloat(heatmapMinEl.value);
   const maxInput = Number.parseFloat(heatmapMaxEl.value);
   const { minBound, maxBound } = sanitizeBounds(minInput, maxInput, fallbackMin, fallbackMax);
 
   for (const row of sortedRows) {
-    const total = componentValue(row, tableSource, "Total");
-    const elst = componentValue(row, tableSource, "Elst");
-    const exch = componentValue(row, tableSource, "Exch");
-    const ind = componentValue(row, tableSource, "Ind");
-    const disp = componentValue(row, tableSource, "Disp");
+    const rowColorValue = tableValueForActiveComponent(row, colorComponent);
 
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${row.Frag1}</td>
-      <td>${row.Frag2}</td>
-      <td>${total.toFixed(4)}</td>
-      <td>${elst.toFixed(4)}</td>
-      <td>${exch.toFixed(4)}</td>
-      <td>${ind.toFixed(4)}</td>
-      <td>${disp.toFixed(4)}</td>
-    `;
-    tr.style.backgroundColor = rowShadeFromTotal(total, minBound, maxBound);
+    const cells = [row.Frag1, row.Frag2];
+    if (tableViewMode === "compare") {
+      for (const component of selectedComponents) {
+        const psiVal = componentValue(row, "psi4", component);
+        const mlVal = componentValue(row, "ml", component);
+        const diff = mlVal - psiVal;
+        cells.push(psiVal.toFixed(2), mlVal.toFixed(2), diff.toFixed(2));
+      }
+    } else {
+      for (const component of selectedComponents) {
+        const value = componentValue(row, tableSource, component);
+        cells.push(value.toFixed(2));
+      }
+    }
+    tr.innerHTML = cells.map((value) => `<td>${value}</td>`).join("");
+    tr.style.backgroundColor = rowShadeFromTotal(rowColorValue, minBound, maxBound);
     tr.addEventListener("click", () => {
       for (const old of tableBody.querySelectorAll("tr")) {
         old.classList.remove("active");
@@ -965,6 +1023,27 @@ heatmapComponentEl.addEventListener("change", () => {
   }
 });
 
+tableViewModeEl.addEventListener("change", () => {
+  tableViewMode = tableViewModeEl.value;
+  if (latestComparisonRows.length > 0) {
+    renderTable(latestComparisonRows);
+  } else {
+    updateTableModeControls();
+    renderTableHeader(getSelectedComponents());
+  }
+});
+
+for (const checkbox of componentFilterEls) {
+  checkbox.addEventListener("change", () => {
+    enforceAtLeastOneComponent(checkbox);
+    if (latestComparisonRows.length > 0) {
+      renderTable(latestComparisonRows);
+    } else {
+      renderTableHeader(getSelectedComponents());
+    }
+  });
+}
+
 toggleSourceBtn.addEventListener("click", () => {
   tableSource = tableSource === "ml" ? "psi4" : "ml";
   renderTable(latestComparisonRows);
@@ -981,5 +1060,6 @@ window.addEventListener("resize", () => {
   }
 });
 
-updateTableHeaderLabels();
+updateTableModeControls();
+renderTableHeader(getSelectedComponents());
 loadExample().catch((err) => setStatus(err.message, "error"));

@@ -82,22 +82,26 @@
       <section class="panel results">
         <div class="results-head">
           <h2>Component Energies</h2>
-          <button id="toggleSourceBtn" type="button">Showing: ML</button>
+          <div class="results-controls">
+            <button id="toggleSourceBtn" type="button">Showing: ML</button>
+            <label for="tableViewMode">View</label>
+            <select id="tableViewMode">
+              <option value="tabulated">Tabulated Energies</option>
+              <option value="compare">Psi4 vs. ML</option>
+            </select>
+          </div>
         </div>
         <p class="hint">Click a row to highlight its fragment pair in the viewer.</p>
+        <div id="componentFilters" class="component-filters">
+          <label><input type="checkbox" data-component="Total" checked /> Total</label>
+          <label><input type="checkbox" data-component="Elst" checked /> Elst</label>
+          <label><input type="checkbox" data-component="Exch" checked /> Exch</label>
+          <label><input type="checkbox" data-component="Ind" checked /> Ind</label>
+          <label><input type="checkbox" data-component="Disp" checked /> Disp</label>
+        </div>
         <div class="table-wrap">
           <table id="resultsTable">
-            <thead>
-              <tr>
-                <th>Frag1</th>
-                <th>Frag2</th>
-                <th id="colTotal">Total</th>
-                <th id="colElst">Elst</th>
-                <th id="colExch">Exch</th>
-                <th id="colInd">Ind</th>
-                <th id="colDisp">Disp</th>
-              </tr>
-            </thead>
+            <thead></thead>
             <tbody></tbody>
           </table>
         </div>
