@@ -198,3 +198,4 @@ tsconfig.tsbuildinfo
 yarn.lock
 none
 psi\.*
+timer.dat

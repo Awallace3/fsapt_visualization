@@ -743,6 +743,10 @@ function tableValueForActiveComponent(row, component) {
   return componentValue(row, tableSource, component);
 }
 
+function sortMagnitudeForRow(row, component) {
+  return Math.abs(tableValueForActiveComponent(row, component));
+}
+
 function valueOrZero(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
@@ -775,8 +779,8 @@ function renderTable(rows) {
 
   const sortedRows = [...rows].sort((a, b) => {
     const sortComponent = latestHeatmapComponent || "Total";
-    const absA = Math.abs(tableValueForActiveComponent(a, sortComponent));
-    const absB = Math.abs(tableValueForActiveComponent(b, sortComponent));
+    const absA = sortMagnitudeForRow(a, sortComponent);
+    const absB = sortMagnitudeForRow(b, sortComponent);
     return absB - absA;
   });
 

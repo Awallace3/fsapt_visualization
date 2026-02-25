@@ -29,7 +29,8 @@ def run_ml_fsapt(
         ) from exc
 
     try:
-        _, _, df_out = apnet_pt.pretrained_models.apnet3_model_predict_pairs(
+        # _, _, df_out = apnet_pt.pretrained_models.apnet3_model_predict_pairs(
+        _, _, df_out = apnet_pt.pretrained_models.apnet2_model_predict_pairs(
             [mol],
             fAs=[fragments_a],
             fBs=[fragments_b],
