@@ -27,6 +27,17 @@ let latestHeatmapComponent = "Total";
 let latestRangeMin = null;
 let latestRangeMax = null;
 let latestDefaultBoundsByComponent = {};
+let uploadedPsi4Rows = [];
+
+function parseErrorDetails(data) {
+  if (!data || typeof data !== "object") {
+    return "";
+  }
+  if (Array.isArray(data.details) && data.details.length > 0) {
+    return ` (${data.details.join("; ")})`;
+  }
+  return "";
+}
 
 function setStatus(message, kind = "") {
   statusEl.textContent = message;
@@ -40,6 +51,101 @@ function formatFragmentText(fragmentMap) {
   return Object.entries(fragmentMap)
     .map(([name, indices]) => `${name}: ${indices.join(",")}`)
     .join("\n");
+}
+
+function moleculeStringFromParsed(parsed) {
+  const atoms = parsed?.atoms || [];
+  const monomerA = atoms.filter((atom) => atom.monomer === 1);
+  const monomerB = atoms.filter((atom) => atom.monomer === 2);
+
+  const lines = ["0 1"];
+  for (const atom of monomerA) {
+    lines.push(`${atom.symbol} ${atom.x} ${atom.y} ${atom.z}`);
+  }
+  lines.push("--");
+  lines.push("0 1");
+  for (const atom of monomerB) {
+    lines.push(`${atom.symbol} ${atom.x} ${atom.y} ${atom.z}`);
+  }
+  lines.push("units angstrom");
+  lines.push("symmetry c1");
+  lines.push("no_reorient");
+  lines.push("no_com");
+  return lines.join("\n");
+}
+
+function extractFragmentsMapFromRows(rows, side) {
+  const nameKey = side === "A" ? "Frag1" : "Frag2";
+  const idxKey = side === "A" ? "Frag1_indices" : "Frag2_indices";
+  const out = {};
+
+  for (const row of rows) {
+    const name = sanitizeFragmentName(row[nameKey]);
+    const indices = row[idxKey];
+    if (!name || name === "All" || !Array.isArray(indices) || indices.length === 0) {
+      continue;
+    }
+    if (!(name in out)) {
+      out[name] = [...indices];
+    }
+  }
+
+  return out;
+}
+
+function sanitizeFragmentName(name) {
+  return String(name || "")
+    .trim()
+    .replace(/:+$/, "");
+}
+
+function normalizeRowFragmentNames(row) {
+  return {
+    ...row,
+    Frag1: sanitizeFragmentName(row.Frag1),
+    Frag2: sanitizeFragmentName(row.Frag2),
+  };
+}
+
+function mergeMlAndPsi4Rows(mlRows, psi4Rows) {
+  const normalizedMlRows = mlRows.map((row) => normalizeRowFragmentNames(row));
+  const normalizedPsiRows = psi4Rows.map((row) => normalizeRowFragmentNames(row));
+  const keyFor = (row) => `${row.Frag1}||${row.Frag2}`;
+  const psiMap = new Map(normalizedPsiRows.map((row) => [keyFor(row), row]));
+  const merged = [];
+
+  for (const mlRow of normalizedMlRows) {
+    const key = keyFor(mlRow);
+    const psi = psiMap.get(key);
+    if (psi) {
+      merged.push({
+        ...mlRow,
+        psi4_Total: psi.psi4_Total,
+        psi4_Elst: psi.psi4_Elst,
+        psi4_Exch: psi.psi4_Exch,
+        psi4_IndAB: psi.psi4_IndAB,
+        psi4_IndBA: psi.psi4_IndBA,
+        psi4_Disp: psi.psi4_Disp,
+      });
+      psiMap.delete(key);
+    } else {
+      merged.push(mlRow);
+    }
+  }
+
+  for (const [, psi] of psiMap) {
+    merged.push({
+      ...psi,
+      ml_Total: 0,
+      ml_Elst: 0,
+      ml_Exch: 0,
+      ml_IndAB: 0,
+      ml_IndBA: 0,
+      ml_Disp: 0,
+    });
+  }
+
+  return merged;
 }
 
 function parseFragmentText(text) {
@@ -80,9 +186,23 @@ async function callJson(url, method = "GET", body = null) {
     body: body ? JSON.stringify(body) : null,
   });
 
-  const data = await res.json();
+  const rawText = await res.text();
+  let data = null;
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    data = null;
+  }
+
   if (!res.ok) {
-    throw new Error(data.error || `Request failed: ${res.status}`);
+    if (data && typeof data === "object") {
+      throw new Error((data.error || `Request failed: ${res.status}`) + parseErrorDetails(data));
+    }
+    const fallback = rawText?.trim() || `Request failed: ${res.status}`;
+    throw new Error(`Server error (${res.status}): ${fallback}`);
+  }
+  if (!data) {
+    throw new Error("Server returned a non-JSON response.");
   }
   return data;
 }
@@ -96,12 +216,42 @@ async function uploadZip(url, file) {
     body: formData,
   });
 
-  const data = await res.json();
+  const rawText = await res.text();
+  let data = null;
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    data = null;
+  }
+
   if (!res.ok) {
-    const details = Array.isArray(data.details) ? ` (${data.details.join("; ")})` : "";
-    throw new Error((data.error || `Upload failed: ${res.status}`) + details);
+    if (data && typeof data === "object") {
+      throw new Error((data.error || `Upload failed: ${res.status}`) + parseErrorDetails(data));
+    }
+    const fallback = rawText?.trim() || `Upload failed: ${res.status}`;
+    throw new Error(`Upload failed (${res.status}): ${fallback}`);
+  }
+  if (!data) {
+    throw new Error("Upload endpoint returned a non-JSON response.");
   }
   return data;
+}
+
+function clearVisualization() {
+  parsedMolecule = null;
+  latestComparisonRows = [];
+  uploadedPsi4Rows = [];
+  latestDefaultBoundsByComponent = {};
+  tableSource = "ml";
+
+  tableBody.innerHTML = "";
+  focusFragmentEl.innerHTML = "";
+  updateTableHeaderLabels();
+  updateRangeLabel();
+  setBoundaryInputs(Number.NaN, Number.NaN);
+
+  viewer.clear();
+  viewer.render();
 }
 
 async function validateFsaptZip(file) {
@@ -617,6 +767,7 @@ function renderTable(rows) {
 
 async function loadExample() {
   setStatus("Loading AP3 example...");
+  uploadedPsi4Rows = [];
   const data = await callJson("/api/example/ap3-fused");
   moleculeInput.value = data.molecule;
   fragAInput.value = formatFragmentText(data.fragments_a);
@@ -627,6 +778,7 @@ async function loadExample() {
 
 async function runParse() {
   setStatus("Parsing molecule...");
+  uploadedPsi4Rows = [];
   const payload = { molecule: moleculeInput.value };
   const data = await callJson("/api/parse-molecule", "POST", payload);
   latestComparisonRows = [];
@@ -660,8 +812,15 @@ async function runMl() {
     abs_err_Total: Math.abs(row.Total),
   }));
 
-  renderTable(comparisonLike);
-  setStatus("ML prediction complete. Psi4 columns set to 0 until comparison run.", "ok");
+  const rowsToRender =
+    uploadedPsi4Rows.length > 0 ? mergeMlAndPsi4Rows(comparisonLike, uploadedPsi4Rows) : comparisonLike;
+
+  renderTable(rowsToRender);
+  if (uploadedPsi4Rows.length > 0) {
+    setStatus("ML prediction complete. Compared against uploaded Psi4 FSAPT results.", "ok");
+  } else {
+    setStatus("ML prediction complete. Psi4 columns set to 0 until comparison run.", "ok");
+  }
 }
 
 async function runCompare() {
@@ -685,10 +844,22 @@ async function runUploadFsapt(file) {
 
   setStatus("Validation passed. Processing FSAPT data...");
   const data = await uploadZip("/api/upload/psi4-fsapt-zip", file);
+  uploadedPsi4Rows = (data.rows || []).map((row) => normalizeRowFragmentNames(row));
   drawMolecule(data.parsed);
+  moleculeInput.value = moleculeStringFromParsed(data.parsed);
+  fragAInput.value = formatFragmentText(extractFragmentsMapFromRows(uploadedPsi4Rows, "A"));
+  fragBInput.value = formatFragmentText(extractFragmentsMapFromRows(uploadedPsi4Rows, "B"));
   tableSource = "psi4";
-  renderTable(data.rows);
-  setStatus("Uploaded FSAPT data processed. Showing Psi4 fragment energies.", "ok");
+  renderTable(uploadedPsi4Rows);
+  setStatus("Uploaded FSAPT data processed. Run ML to compare ML vs uploaded Psi4.", "ok");
+}
+
+function clearAllInputsAndData() {
+  moleculeInput.value = "";
+  fragAInput.value = "";
+  fragBInput.value = "";
+  clearVisualization();
+  setStatus("Cleared molecule, fragments, and visualization.", "ok");
 }
 
 function resetCurrentHeatmapRange() {
@@ -712,6 +883,10 @@ document.getElementById("loadExampleBtn").addEventListener("click", async () => 
   } catch (err) {
     setStatus(err.message, "error");
   }
+});
+
+document.getElementById("clearAllBtn").addEventListener("click", () => {
+  clearAllInputsAndData();
 });
 
 document.getElementById("parseBtn").addEventListener("click", async () => {

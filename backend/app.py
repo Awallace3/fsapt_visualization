@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from flask import Flask, jsonify, request, send_from_directory
+from werkzeug.exceptions import HTTPException
 
 from backend.example_data import (
     EXAMPLE_FRAGMENTS_A,
@@ -191,6 +192,12 @@ def create_app() -> Flask:
     @app.errorhandler(RuntimeError)
     def handle_runtime_error(err: RuntimeError) -> Any:
         return jsonify({"error": str(err)}), 500
+
+    @app.errorhandler(Exception)
+    def handle_unexpected_error(err: Exception) -> Any:
+        if isinstance(err, HTTPException):
+            return err
+        return jsonify({"error": f"Unexpected server error: {err}"}), 500
 
     @app.get("/")
     def serve_index() -> Any:

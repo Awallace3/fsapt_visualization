@@ -20,14 +20,29 @@ def run_ml_fsapt(
             "ML backend dependencies are missing. Install qcelemental and apnet_pt."
         ) from exc
 
-    mol = qcel.models.Molecule.from_data(molecule)
-    _, _, df_out = apnet_pt.pretrained_models.apnet3_model_predict_pairs(
-        [mol],
-        fAs=[fragments_a],
-        fBs=[fragments_b],
-        compile=False,
-        print_results=False,
-    )
+    try:
+        mol = qcel.models.Molecule.from_data(molecule)
+    except Exception as exc:
+        raise RuntimeError(
+            "Could not parse molecule for ML prediction. Check the QCE molecule format, "
+            "including charge/multiplicity lines for both monomers before and after '--'."
+        ) from exc
+
+    try:
+        _, _, df_out = apnet_pt.pretrained_models.apnet3_model_predict_pairs(
+            [mol],
+            fAs=[fragments_a],
+            fBs=[fragments_b],
+            compile=False,
+            print_results=False,
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            "ML prediction failed. A common cause is incorrect monomer charge/multiplicity "
+            "in the QCE molecule string (especially after uploading Psi4 FSAPT data). "
+            "Please verify both monomer headers like '0 1' and fragment assignments. "
+            f"Original error: {exc}"
+        ) from exc
 
     if isinstance(df_out, pd.DataFrame):
         df = df_out.copy()
