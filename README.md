@@ -50,11 +50,11 @@ http://localhost:5000
 
 ## Notes
 
-- ML prediction requires `qcelemental` and `apnet_pt` installed in your Python
+- ML prediction requires `qcelemental` and `qcmlforge` installed in your Python
   environment.
 - Psi4 prediction requires `psi4` installed.
 - Fragment indices are expected to be 1-indexed (aligned with Psi4
   `fsapt_analysis` usage).
 - Uploaded FSAPT zip processing requires these files at archive root (or single
   nested directory): `geom.xyz`, `fA.dat`, `fB.dat`, `QA.dat`, `QB.dat`,
-  `ZA.dat`, `ZB.dat`, `Elst.dat`, `Exch.dat`, `IndAB.dat`, `IndBA.dat`.
+  `ZA.dat`, `ZB.dat`, `Elst.dat`, `Exch.dat`, `IndAB.dat`, `IndBA.dat` and optionally `geom.psi4mol`
