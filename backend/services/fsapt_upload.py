@@ -109,6 +109,17 @@ def _build_parsed_from_geom(data_dir: Path) -> Dict:
     }
 
 
+def _read_psi4mol(data_dir: Path) -> str | None:
+    """Read geom.psi4mol if present and return its contents as a molecule string."""
+    psi4mol_path = data_dir / "geom.psi4mol"
+    if not psi4mol_path.is_file():
+        return None
+    text = psi4mol_path.read_text().strip()
+    if not text:
+        return None
+    return text
+
+
 def _rows_from_fsapt_data(data: Dict[str, List]) -> List[Dict]:
     size = len(data.get("Frag1", []))
     rows: List[Dict] = []
@@ -279,9 +290,14 @@ def process_uploaded_fsapt_zip(zip_bytes: bytes) -> Dict:
         rows = _rows_from_fsapt_data(cast(Dict[str, List], fsapt_data))
         parsed = _build_parsed_from_geom(fsapt_dir)
 
+        molecule_string = _read_psi4mol(fsapt_dir)
+        used_psi4mol = molecule_string is not None
+
         return {
             "rows": rows,
             "parsed": parsed,
+            "molecule_string": molecule_string,
+            "used_psi4mol": used_psi4mol,
             "required_files": sorted(REQUIRED_FSAPT_FILES),
             "validation": validation,
         }

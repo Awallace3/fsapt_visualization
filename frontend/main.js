@@ -16,6 +16,7 @@ const tableViewModeEl = document.getElementById("tableViewMode");
 const componentFilterEls = Array.from(document.querySelectorAll("#componentFilters input[type='checkbox']"));
 const uploadFsaptInput = document.getElementById("uploadFsaptInput");
 const resetHeatmapRangeBtn = document.getElementById("resetHeatmapRangeBtn");
+const psi4molWarningEl = document.getElementById("psi4molWarning");
 
 const viewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
 
@@ -908,7 +909,12 @@ async function runUploadFsapt(file) {
   const data = await uploadZip("/api/upload/psi4-fsapt-zip", file);
   uploadedPsi4Rows = (data.rows || []).map((row) => normalizeRowFragmentNames(row));
   drawMolecule(data.parsed);
-  moleculeInput.value = moleculeStringFromParsed(data.parsed);
+  if (data.molecule_string) {
+    moleculeInput.value = data.molecule_string;
+  } else {
+    moleculeInput.value = moleculeStringFromParsed(data.parsed);
+  }
+  psi4molWarningEl.hidden = !!data.used_psi4mol;
   fragAInput.value = formatFragmentText(extractFragmentsMapFromRows(uploadedPsi4Rows, "A"));
   fragBInput.value = formatFragmentText(extractFragmentsMapFromRows(uploadedPsi4Rows, "B"));
   tableSource = "psi4";
@@ -920,6 +926,7 @@ function clearAllInputsAndData() {
   moleculeInput.value = "";
   fragAInput.value = "";
   fragBInput.value = "";
+  psi4molWarningEl.hidden = true;
   clearVisualization();
   setStatus("Cleared molecule, fragments, and visualization.", "ok");
 }

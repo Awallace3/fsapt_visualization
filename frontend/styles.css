@@ -196,6 +196,18 @@ button:hover {
 .status.ok {
   color: var(--ok);
 }
+.psi4mol-warning {
+  display: none;
+  color: #b91c1c;
+  font-size: 0.84rem;
+  font-weight: 600;
+  margin: 0.25rem 0 0.15rem;
+  line-height: 1.35;
+}
+
+.psi4mol-warning:not([hidden]) {
+  display: block;
+}
 
 #viewer {
   width: 100%;
