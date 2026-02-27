@@ -504,7 +504,7 @@ function focusedContributions(rows, componentKey, side, focusedFragment) {
         value: 0,
       });
     }
-    out.get(name).value += differenceComponentValue(row, componentKey);
+    out.get(name).value += tableValueForActiveComponent(row, componentKey);
   }
 
   return {
